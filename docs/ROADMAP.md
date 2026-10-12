@@ -26,7 +26,8 @@ Estado: ✅ hecho · 🟡 parcial · ⬜ pendiente. Actualizado el 12-10-2026.
 - ✅ Guardado atómico con copias; progreso offline analítico coherente con el online.
 - ⬜ Pistas contextuales del tutorial en el cuaderno.
 - ⬜ Marca de excavación (sugerir dónde ampliar).
-- ⬜ Exportación para Windows (`export_presets.cfg`) y prueba de 8 horas con testers.
+- ✅ Exportación para Windows y Linux (`export_presets.cfg`, un único ejecutable con el paquete incrustado).
+- ⬜ Prueba de 8 horas con testers.
 - **Criterios de aceptación:** primera obrera en 40–55 h reales en modo acompañante ✅ (~día 40 ≈ 40 h); offline a menos de ±15 % del online ✅ (test); cargar una partida de la versión anterior ⬜ (hay `migrate()`, falta un fixture); 8 h abierto sin cierres ni consumo anómalo ⬜.
 
 ## Fase 3 — Alpha ⬜
