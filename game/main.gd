@@ -12,6 +12,7 @@ var settings := GameSettings.new()
 var world: SimWorld
 var world_root: Node2D
 var soil_r: SoilRenderer
+var decor_room: DecorLayer
 var decor_back: DecorLayer
 var decor_front: DecorLayer
 var pher_r: PheromoneOverlay
@@ -95,14 +96,17 @@ func _build_view() -> void:
 	world_root = Node2D.new()
 	world_root.name = "World"
 	add_child(world_root)
-	decor_back = DecorLayer.new()
-	decor_back.setup(world, DecorLayer.Layer.BACK)
-	world_root.add_child(decor_back)
+	# Orden de pintado: habitación → suelo → decorado (cría, granero, comedero…)
+	# → feromonas → hormigas → cristal.
+	decor_room = DecorLayer.new()
+	decor_room.setup(world, DecorLayer.Layer.ROOM)
+	world_root.add_child(decor_room)
 	soil_r = SoilRenderer.new()
 	soil_r.setup(world)
 	world_root.add_child(soil_r)
-	# El decorado trasero se pinta encima del suelo en lo que respecta a cría y granero.
-	world_root.move_child(decor_back, 1)
+	decor_back = DecorLayer.new()
+	decor_back.setup(world, DecorLayer.Layer.BACK)
+	world_root.add_child(decor_back)
 	pher_r = PheromoneOverlay.new()
 	pher_r.setup(world)
 	world_root.add_child(pher_r)
@@ -141,7 +145,7 @@ func _apply_window_mode() -> void:
 	world_root.scale = Vector2(z, z)
 	if settings.window_mode == "franja":
 		_strip_size = DesktopWindow.apply_strip_mode(settings.strip_height, settings.always_on_top)
-		decor_back.draw_room = false
+		decor_room.draw_room = false
 		backdrop.visible = false
 		hud.info_panel.visible = false
 		get_viewport().transparent_bg = true
@@ -149,7 +153,7 @@ func _apply_window_mode() -> void:
 		_pan = Vector2(0, -float(SimConst.SURFACE_Y - 46) * z)
 	else:
 		DesktopWindow.apply_window_mode(settings.always_on_top, settings.window_pos)
-		decor_back.draw_room = true
+		decor_room.draw_room = true
 		backdrop.visible = true
 		hud.info_panel.visible = settings.show_info
 		get_viewport().transparent_bg = true

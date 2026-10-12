@@ -243,12 +243,16 @@ func dist_at(field: int, n: int) -> int:
 
 ## Siguiente nodo bajando por el gradiente del campo (hacia la fuente).
 ## Con `noise` > 0 a veces elige un vecino igual de bueno al azar.
-func step_down(field: int, n: int, rng: RandomNumberGenerator) -> int:
+## Si se pasa `occ` (hormigas por nodo), entre vecinos igual de buenos se
+## prefiere el menos ocupado: el tráfico se reparte por el ancho de la galería.
+func step_down(field: int, n: int, rng: RandomNumberGenerator, occ: PackedByteArray = PackedByteArray()) -> int:
 	var dist := fields[field]
 	var nx := n % nw
 	var ny := n / nw
 	var best := -1
 	var best_d := dist[n] if n >= 0 else INF_DIST
+	var best_o := 1 << 20
+	var use_occ := occ.size() == walk.size()
 	var ties := 0
 	for k in 8:
 		var xx: int = nx + NB_DX[k]
@@ -261,14 +265,21 @@ func step_down(field: int, n: int, rng: RandomNumberGenerator) -> int:
 		if k >= 4 and (walk[ny * nw + xx] != 1 or walk[yy * nw + nx] != 1):
 			continue
 		var d := dist[m]
+		var o := int(occ[m]) if use_occ else 0
 		if d < best_d:
 			best_d = d
 			best = m
+			best_o = o
 			ties = 1
 		elif d == best_d and best >= 0:
-			ties += 1
-			if rng.randi_range(1, ties) == 1:
+			if o < best_o:
 				best = m
+				best_o = o
+				ties = 1
+			elif o == best_o:
+				ties += 1
+				if rng.randi_range(1, ties) == 1:
+					best = m
 	return best
 
 

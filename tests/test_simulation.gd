@@ -79,3 +79,26 @@ func test_foragers_reach_feeder_across_entrance() -> void:
 	_run(w, 1500.0)
 	check(w.colony.seeds_harvested_total > 0.0, "se han recogido semillas del comedero")
 	w.dispose()
+
+
+func test_resting_ants_spread_out() -> void:
+	# Las obreras que descansan buscan un nodo libre en vez de apilarse (Ants.occ).
+	var w := make_world(5)
+	w.set_time_scale(300.0)
+	_run(w, 1500.0)   # cámara de fundación excavada
+	w.set_time_scale(24.0)
+	var bp := w.brood_site_pos()
+	w.colony.workers[0] = 20
+	for k in 20:
+		w.ants.spawn(SimConst.Caste.MINOR, bp.x + float(k % 5) - 2.0, bp.y, w.bio_day() - 30.0, false)
+	_run(w, 90.0)
+	var resting := 0
+	var shared := 0
+	for i in w.ants.cap:
+		if w.ants.alive[i] == 1 and w.ants.state[i] == Ants.St.RESTING:
+			resting += 1
+			if w.ants.occ[w.ants.node[i]] > 1:
+				shared += 1
+	check(resting >= 5, "hay obreras descansando (%d)" % resting)
+	check(float(shared) <= 0.35 * float(resting), "pocas comparten nodo (%d de %d)" % [shared, resting])
+	w.dispose()

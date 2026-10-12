@@ -5,7 +5,7 @@ extends Node2D
 ## cría, granero y el marco de cristal. Se redibuja ~8 veces por segundo.
 
 const ITEM := 8
-enum Layer { BACK, FRONT }
+enum Layer { ROOM, BACK, FRONT }
 
 var world: SimWorld
 var layer: int = Layer.BACK
@@ -42,24 +42,33 @@ func _item(idx: int, pos: Vector2) -> void:
 func _draw() -> void:
 	if world == null:
 		return
-	if layer == Layer.BACK:
-		_draw_back()
-	else:
-		_draw_front()
+	match layer:
+		Layer.ROOM:
+			_draw_room()
+		Layer.BACK:
+			_draw_back()
+		_:
+			_draw_front()
+
+
+## Pared de la habitación detrás del formicario (solo modo ventana): clara de
+## día, azulada de noche. Va en su propia capa, DETRÁS del suelo, para no tapar
+## el montículo de tierra que sobresale por encima de la superficie.
+func _draw_room() -> void:
+	if not draw_room:
+		return
+	var soil := world.soil
+	var top := room_color(world.cal.light_level())
+	var bottom := top.darkened(0.08)
+	var hmax := SimConst.SURFACE_Y + 4
+	var steps := 12
+	for k in steps:
+		var y0 := float(hmax) * k / steps
+		draw_rect(Rect2(0, y0, soil.w, float(hmax) / steps + 1.0), top.lerp(bottom, float(k) / steps))
 
 
 func _draw_back() -> void:
 	var soil := world.soil
-	var light := world.cal.light_level()
-	if draw_room:
-		# Pared de la habitación detrás del formicario: clara de día, azulada de noche.
-		var top := room_color(light)
-		var bottom := top.darkened(0.08)
-		var hmax := SimConst.SURFACE_Y + 4
-		var steps := 12
-		for k in steps:
-			var y0 := float(hmax) * k / steps
-			draw_rect(Rect2(0, y0, soil.w, float(hmax) / steps + 1.0), top.lerp(bottom, float(k) / steps))
 	# Mechones de hierba (detrás de las hormigas).
 	var month := world.cal.month()
 	var dry := 1.0 if month in [7, 8] else (0.5 if month in [6, 9] else 0.0)

@@ -18,6 +18,15 @@ func _init() -> void:
 			w.env.feeder_seeds += 2000.0
 		if w.env.water_ml < 30.0:
 			w.env.water_ml = 100.0
+	# A 400× la excavación (tiempo de comportamiento) va muy por detrás de la
+	# biología; en una partida real a ×24 el nido estaría al día. Se deja que el
+	# nido alcance el espacio que pide la colonia con la excavación rápida offline.
+	for _k in 40:
+		if OfflineResolver._fast_dig(w, 4000) == 0:
+			break
+	w.nav.update_from_soil()
+	w._refresh_sources(true)
+	w.nav.refresh_fields()
 	# Acabar con unos minutos a escala normal para que el reparto de tareas se asiente.
 	w.set_time_scale(24.0)
 	for _k in 1200:

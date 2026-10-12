@@ -27,6 +27,7 @@ func setup(w: SimWorld) -> void:
 	var atlas: Texture2D = load("res://assets/sprites/ants.png")
 	var items: Texture2D = load("res://assets/sprites/items.png")
 	ants_mmi = _make_mmi(atlas, CELL, Vector2(float(CELL) / atlas.get_width(), float(CELL) / atlas.get_height()), w.ants.cap)
+	(ants_mmi.material as ShaderMaterial).set_shader_parameter("use_outline", true)
 	items_mmi = _make_mmi(items, ITEM, Vector2(float(ITEM) / items.get_width(), float(ITEM) / items.get_height()), w.ants.cap)
 	add_child(items_mmi)
 	add_child(ants_mmi)

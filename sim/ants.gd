@@ -55,6 +55,9 @@ var thr := PackedFloat32Array()        ## umbrales [cap × N_TASKS]
 var free_list := PackedInt32Array()
 var task_count := PackedInt32Array()
 var queen_index: int = -1
+## Hormigas por nodo de navegación (se recalcula en cada paso). Sirve para que
+## las que se paran busquen un hueco libre en vez de apilarse en el mismo nodo.
+var occ := PackedByteArray()
 
 
 func setup(w: SimWorld, capacity: int) -> void:
@@ -200,6 +203,7 @@ func _set_task(i: int, t: int) -> void:
 func step(dt: float) -> void:
 	prev_px = px      # copia barata (copia en escritura)
 	prev_py = py
+	_rebuild_occupancy()
 	for i in cap:
 		if alive[i] == 0:
 			continue
@@ -208,6 +212,35 @@ func step(dt: float) -> void:
 			timer[i] -= dt
 			continue
 		_update(i, dt)
+
+
+func _rebuild_occupancy() -> void:
+	var nn := nav.nw * nav.nh
+	if occ.size() != nn:
+		occ.resize(nn)
+	occ.fill(0)
+	for i in cap:
+		if alive[i] == 1:
+			var n := node[i]
+			if n >= 0 and n < nn and occ[n] < 255:
+				occ[n] += 1
+
+
+## Ocupación de un nodo sin contar a la propia hormiga i.
+func _occ_others(i: int, n: int) -> int:
+	if n < 0 or n >= occ.size():
+		return 0
+	return occ[n] - (1 if node[i] == n else 0)
+
+
+## Mueve la ocupación de la hormiga i al nodo m (para que las siguientes en el
+## mismo paso ya lo vean ocupado).
+func _claim(i: int, m: int) -> void:
+	var n := node[i]
+	if n >= 0 and n < occ.size() and occ[n] > 0:
+		occ[n] -= 1
+	if m >= 0 and m < occ.size() and occ[m] < 255:
+		occ[m] += 1
 
 
 func _update(i: int, dt: float) -> void:
@@ -222,6 +255,8 @@ func _update(i: int, dt: float) -> void:
 			var nt := _decide(i)
 			if nt < 0:
 				break
+			if nt != node[i]:
+				_claim(i, nt)
 			target[i] = nt
 		var c := nav.node_center(target[i])
 		var dx := c.x - px[i]
@@ -265,7 +300,7 @@ func _path(i: int, field: int) -> int:
 		return ARRIVED
 	if d >= NavGrid.INF_DIST:
 		return UNREACH
-	var nx := nav.step_down(field, n, rng)
+	var nx := nav.step_down(field, n, rng, occ)
 	if nx < 0:
 		return UNREACH
 	return nx
@@ -293,6 +328,8 @@ func _wander(i: int) -> int:
 func _local(i: int, field: int, radius: int) -> int:
 	var n := node[i]
 	var start := rng.randi_range(0, 7)
+	var best := -1
+	var best_o := 1 << 20
 	for j in 8:
 		var k := (start + j) % 8
 		var xx: int = nav.node_x(n) + NavGrid.NB_DX[k]
@@ -301,8 +338,13 @@ func _local(i: int, field: int, radius: int) -> int:
 			continue
 		var m := yy * nav.nw + xx
 		if nav.is_walkable(m) and nav.dist_at(field, m) <= radius:
-			return m
-	return -1
+			var o := _occ_others(i, m)
+			if o < best_o:
+				best_o = o
+				best = m
+				if o == 0:
+					break
+	return best
 
 
 ## Bajar por el campo de la cámara de descanso preferida de la hormiga i.
@@ -334,6 +376,8 @@ func _path_rest(i: int) -> int:
 func _local_rest(i: int, radius: int) -> int:
 	var n := node[i]
 	var start := rng.randi_range(0, 7)
+	var best := -1
+	var best_o := 1 << 20
 	for j in 8:
 		var k := (start + j) % 8
 		var xx: int = nav.node_x(n) + NavGrid.NB_DX[k]
@@ -342,8 +386,13 @@ func _local_rest(i: int, radius: int) -> int:
 			continue
 		var m := yy * nav.nw + xx
 		if nav.is_walkable(m) and world.rest_dist(i, m) <= radius:
-			return m
-	return -1
+			var o := _occ_others(i, m)
+			if o < best_o:
+				best_o = o
+				best = m
+				if o == 0:
+					break
+	return best
 
 
 func _outworld(i: int) -> bool:
@@ -430,8 +479,13 @@ func _decide_rest(i: int) -> int:
 	# Ir a la cámara más cercana (no granero), repartirse por ella y quedarse quieta.
 	if state[i] == St.RESTING:
 		if timer[i] <= 0.0:
-			state[i] = St.LOCAL
-			timer[i] = rng.randf_range(1.0, 4.0)
+			# Si se ha quedado lejos de «su» cámara (p. ej. porque se excavaron
+			# cámaras nuevas mientras dormía), vuelve a ir hacia ella.
+			if world.rest_dist(i, node[i]) > 8:
+				state[i] = St.IDLE
+			else:
+				state[i] = St.LOCAL
+				timer[i] = rng.randf_range(1.0, 4.0)
 		return -1
 	var d := world.rest_dist(i, node[i])
 	if state[i] != St.LOCAL and d > 4:
@@ -450,6 +504,13 @@ func _decide_rest(i: int) -> int:
 		var nx := _local_rest(i, 6)
 		if nx >= 0:
 			return nx
+	# Antes de pararse, buscar un hueco libre (unos pocos intentos, con radio creciente).
+	if _occ_others(i, node[i]) > 0 and aux[i] < 6:
+		aux[i] = maxi(aux[i], 0) + 1
+		var nx2 := _local_rest(i, 6 + aux[i] * 2)
+		if nx2 >= 0:
+			return nx2
+	aux[i] = -1
 	state[i] = St.RESTING
 	timer[i] = rng.randf_range(12.0, 40.0)
 	return -1

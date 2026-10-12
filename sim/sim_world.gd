@@ -339,9 +339,10 @@ func _chamber_depth_frac(purpose: String) -> float:
 func space_need() -> Dictionary:
 	var w := float(colony.total_workers())
 	var b := float(colony.brood_total())
-	# [D] Área de corte (px²) que la colonia «quiere» tener. Crece de forma
-	# sublineal: el corte del formicario solo muestra una rebanada del nido real.
-	var need_b := 150.0 + 60.0 * pow(w, 0.65) + 5.0 * pow(b, 0.85)
+	# [D] Área de corte (px²) que la colonia «quiere» tener. Casi lineal con las
+	# obreras (~25 px² por hormiga visible, lo que ocupa un sprite con holgura)
+	# para que la colonia quepa en el corte sin apelotonarse.
+	var need_b := 150.0 + 34.0 * pow(w, 0.9) + 4.0 * pow(b, 0.85)
 	var need_g := 0.0
 	if colony.granary > 1.0:
 		need_g = 80.0 + 30.0 * pow(colony.granary / 50.0, 0.7)
@@ -434,7 +435,8 @@ func compute_stimuli() -> void:
 	if plan.has_active_work() and dig_front_count > 0:
 		var deficit := plan.space_deficit(space_need())
 		var by_deficit := deficit / 60.0
-		var base := clampf(maxf(float(dig_front_count) / 3.0, by_deficit), 1.0, maxf(1.0, minf(w * 0.3, float(dig_front_count) * 1.5)))
+		# Tope por frentes: más excavadoras que huecos de trabajo solo atascan las galerías.
+		var base := clampf(maxf(float(dig_front_count) / 3.0, by_deficit), 1.0, maxf(1.0, minf(w * 0.25, float(dig_front_count) * 0.7)))
 		if plan.plug_open_requested:
 			base = maxf(base, minf(3.0, w))
 		desired[SimConst.Task.DIG] = base
