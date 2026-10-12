@@ -31,6 +31,9 @@ var _region_timer := 0.0
 var _save_path := SaveSystem.DEFAULT_PATH
 var _screenshot_frames := -1
 var _screenshot_path := ""
+var _test_size := Vector2i.ZERO     ## --tam=AnchoxAlto (pruebas de escalado)
+var _series_left := 0               ## --serie=N: N capturas seguidas (pruebas de animación)
+var _series_idx := 0
 
 
 func _ready() -> void:
@@ -54,6 +57,9 @@ func _ready() -> void:
 	_build_view()
 	_build_ui()
 	_apply_window_mode()
+	get_viewport().size_changed.connect(_on_viewport_resized)
+	if _test_size != Vector2i.ZERO and not DesktopWindow.is_headless():
+		_apply_test_size.call_deferred()
 	if not offline_summary.is_empty() and float(offline_summary.get("real_seconds", 0.0)) > 300.0:
 		hud.show_welcome(offline_summary)
 
@@ -74,6 +80,17 @@ func _parse_cmdline() -> void:
 			settings.window_mode = "franja"
 		elif a == "--ventana":
 			settings.window_mode = "ventana"
+		elif a.begins_with("--serie="):
+			_series_left = int(a.substr(8))
+		elif a.begins_with("--tam="):
+			var parts := a.substr(6).split("x")
+			if parts.size() == 2:
+				_test_size = Vector2i(int(parts[0]), int(parts[1]))
+
+
+func _apply_test_size() -> void:
+	get_window().position = Vector2i.ZERO
+	get_window().size = _test_size
 
 
 static func _local_now_unix() -> float:
@@ -140,9 +157,33 @@ func _refresh_buttons() -> void:
 	hud.set_button_pressed_look("info", hud.info_panel.visible)
 
 
-func _apply_window_mode() -> void:
-	var z := float(settings.zoom)
+## Zoom entero del formicario. En modo ventana con ajuste automático, el mayor
+## que cabe en la ventana (el pixel art se mantiene nítido con escalas enteras).
+func _target_zoom() -> int:
+	if settings.window_mode == "franja" or not settings.zoom_auto:
+		return settings.zoom
+	var vs := _view_size()
+	var fit_w := floori(vs.x / float(world.soil.w))
+	var fit_h := floori((vs.y - Hud.BAR_H) / float(world.soil.h))
+	return clampi(mini(fit_w, fit_h), 1, 8)
+
+
+func _apply_zoom() -> void:
+	var z := float(_target_zoom())
 	world_root.scale = Vector2(z, z)
+
+
+func _on_viewport_resized() -> void:
+	if world_root == null:
+		return
+	_apply_zoom()
+	_layout_world()
+	_update_click_region()
+
+
+func _apply_window_mode() -> void:
+	_apply_zoom()
+	var z := world_root.scale.x
 	if settings.window_mode == "franja":
 		_strip_size = DesktopWindow.apply_strip_mode(settings.strip_height, settings.always_on_top)
 		decor_room.draw_room = false
@@ -166,28 +207,29 @@ func _view_size() -> Vector2:
 	return get_viewport().get_visible_rect().size
 
 
+## Coloca el formicario: centrado si cabe; si es más grande que la vista, se
+## puede desplazar (`_pan` es el desplazamiento absoluto, ≤ 0).
 func _layout_world() -> void:
 	var vs := _view_size()
 	var z := world_root.scale.x
 	var ww := float(world.soil.w) * z
 	var wh := float(world.soil.h) * z
 	var avail_h := vs.y - Hud.BAR_H
-	var x_center := floorf((vs.x - ww) * 0.5)
-	var x := x_center
-	if ww > vs.x:
-		_pan.x = clampf(_pan.x, vs.x - ww - x_center, -x_center)
-		x = floorf(x_center + _pan.x)
-	else:
+	var x := 0.0
+	if ww <= vs.x:
 		_pan.x = 0.0
-	var y_min := minf(0.0, avail_h - wh)
-	var y_base := avail_h - wh if settings.window_mode != "franja" else 0.0
-	if wh < avail_h:
-		y_base = avail_h - wh
-		y_min = y_base
-	_pan.y = clampf(_pan.y, y_min - y_base, 0.0 if settings.window_mode == "franja" else maxf(0.0, -y_min))
-	var y := floorf(y_base + _pan.y)
-	if settings.window_mode != "franja":
-		y = floorf(clampf(y_base + _pan.y, y_min, maxf(0.0, avail_h - wh)))
+		x = floorf((vs.x - ww) * 0.5)
+	else:
+		_pan.x = clampf(_pan.x, vs.x - ww, 0.0)
+		x = floorf(_pan.x)
+	var y := 0.0
+	if wh <= avail_h:
+		_pan.y = 0.0
+		# Franja: pegado a la barra. Ventana: centrado (sobre la balda).
+		y = floorf(avail_h - wh) if settings.window_mode == "franja" else floorf((avail_h - wh) * 0.5)
+	else:
+		_pan.y = clampf(_pan.y, avail_h - wh, 0.0)
+		y = floorf(_pan.y)
 	world_root.position = Vector2(x, y)
 
 
@@ -236,6 +278,13 @@ func _process(delta: float) -> void:
 	if _screenshot_frames > 0:
 		_screenshot_frames -= 1
 		if _screenshot_frames == 0:
+			if _series_left > 0:
+				# Serie de capturas cada 2 frames: nombre_0.png, nombre_1.png…
+				get_viewport().get_texture().get_image().save_png(_screenshot_path.replace(".png", "_%d.png" % _series_idx))
+				_series_idx += 1
+				_series_left -= 1
+				_screenshot_frames = 2
+				return
 			get_viewport().get_texture().get_image().save_png(_screenshot_path)
 			get_tree().quit()
 
@@ -347,6 +396,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			KEY_F11: _on_action("mode", null)
 			KEY_EQUAL, KEY_PLUS, KEY_KP_ADD: _zoom(1)
 			KEY_MINUS, KEY_KP_SUBTRACT: _zoom(-1)
+			KEY_0, KEY_KP_0: _zoom_auto()
 			KEY_ESCAPE:
 				hud.journal_panel.visible = false
 				hud.help_panel.visible = false
@@ -360,9 +410,20 @@ func _paint_at(screen_pos: Vector2) -> void:
 
 
 func _zoom(d: int) -> void:
-	settings.zoom = clampi(settings.zoom + d, 1, 4)
-	world_root.scale = Vector2(settings.zoom, settings.zoom)
+	# Zoom manual: parte del zoom actual y desactiva el ajuste automático.
+	settings.zoom = clampi(int(world_root.scale.x) + d, 1, 8)
+	settings.zoom_auto = false
+	_apply_zoom()
 	_layout_world()
+	_update_click_region()
+	settings.save_settings()
+
+
+func _zoom_auto() -> void:
+	settings.zoom_auto = true
+	_apply_zoom()
+	_layout_world()
+	_update_click_region()
 	settings.save_settings()
 
 

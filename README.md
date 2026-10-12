@@ -14,7 +14,7 @@ Biología real: fundación claustral, nanitics, castas por tamaño de colonia, d
 | F · L · I · J · H | Feromonas · lupa · información · diario · ayuda |
 | F11 | Alternar ventana y franja |
 | Rueda / botón derecho | Desplazarse |
-| + / − | Zoom |
+| + / − · 0 | Zoom manual · zoom automático (se ajusta a la ventana) |
 
 ## Estado
 Vertical slice de *Messor barbarus* en curso (ver `docs/ROADMAP.md`). Lo siguiente: vuelo nupcial y prestigio con los dos linajes genéticos de *M. barbarus*.

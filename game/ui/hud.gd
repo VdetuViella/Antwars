@@ -323,7 +323,7 @@ func _help_text() -> String:
 Las hormigas se mueven a velocidad real para que puedas mirarlas, pero el calendario corre a la escala elegida: tiempo real (×1), acompañante (×24: un día cada hora) o acelerado (×96). Con el juego cerrado la colonia sigue viviendo y al volver te lo resume.
 
 [b]Teclas[/b]
-1/2/3 escala de tiempo · F feromonas · L lupa · I info · J diario · H ayuda · F11 ventana/franja · rueda o botón derecho para desplazarte · +/- zoom
+1/2/3 escala de tiempo · F feromonas · L lupa · I info · J diario · H ayuda · F11 ventana/franja · rueda o botón derecho para desplazarte · +/- zoom · 0 zoom automático (se ajusta a la ventana)
 
 [b]Biología real[/b]
 Fundación claustral, nanitics, castas por tamaño de colonia, desarrollo según temperatura, diapausa invernal y molienda de semillas siguen datos publicados y de criadores (ver docs/BIOLOGIA.md)."""

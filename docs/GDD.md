@@ -126,5 +126,5 @@ Colonias vecinas, depredadores (arañas *Zodarion*), hormiga argentina como amen
 | Feromonas, lupa, info, diario, ayuda | F, L, I, J, H |
 | Ventana ↔ franja | F11 |
 | Desplazarse | Rueda o arrastrar con el botón derecho |
-| Zoom (×1–×4) | + / − |
+| Zoom | Automático según la ventana; + / − manual (×1–×8); 0 vuelve al automático |
 | Pintar rastro | Botón *Pincel* + clic izquierdo en la superficie |

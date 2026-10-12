@@ -4,15 +4,17 @@ extends Node2D
 ## lo que llevan en las mandíbulas con otro. Posiciones interpoladas entre
 ## pasos de comportamiento y ajustadas al píxel.
 
-const CELL := 20
+const CELL := 24
 const ITEM := 8
+const WALK_FRAMES := 6               # marcha en trípode (tools/gen_sprites.py)
+const FRAMES_PER_DIR := 8            # 6 de marcha + 2 de reposo
 const ROW_OF_CASTE := [0, 1, 2, 3]   # menor, media, mayor, reina (nanitic = fila 4)
 # dir8 → (orientación base, volteo H, volteo V)
 const DIR_MAP := [[0, 0, 0], [1, 0, 0], [2, 0, 0], [1, 1, 0], [0, 1, 0], [1, 1, 1], [2, 0, 1], [1, 0, 1]]
 const DIR_VEC := [Vector2(1, 0), Vector2(0.7, -0.7), Vector2(0, -1), Vector2(-0.7, -0.7),
 	Vector2(-1, 0), Vector2(-0.7, 0.7), Vector2(0, 1), Vector2(0.7, 0.7)]
-const HEAD_REACH := [5.0, 6.0, 7.5, 9.0]   # distancia del centro a las mandíbulas por casta
-const FEET := [3.0, 3.0, 3.0, 5.0]         # del centro del sprite a la base de las patas
+const HEAD_REACH := [5.0, 7.0, 7.0, 9.0, 4.0]   # del centro a las mandíbulas, por fila del atlas
+const FEET := [4.0, 4.0, 5.0, 6.0, 3.0]         # del centro del sprite a los pies, por fila
 
 var world: SimWorld
 var ants_mmi: MultiMeshInstance2D
@@ -82,7 +84,7 @@ func _process(_delta: float) -> void:
 		if nav.is_outworld(a.node[i]):
 			# En la superficie: patas sobre el suelo (o la pila de tierra) y de perfil.
 			var cx := clampi(int(x), 0, world.soil.w - 1)
-			y = float(world.soil.col_top[cx]) - FEET[c]
+			y = float(world.soil.col_top[cx]) - FEET[row]
 			if dk == 1 or dk == 7:
 				dk = 0
 			elif dk == 3 or dk == 5:
@@ -90,13 +92,21 @@ func _process(_delta: float) -> void:
 			elif dk == 2 or dk == 6:
 				dk = 0 if a.hdir[i] == 1 else 4
 		var d: Array = DIR_MAP[dk]
-		var frame := int(a.anim[i]) & 3
-		if a.state[i] == Ants.St.RESTING:
-			frame = 1
+		# Andando: ciclo de marcha. Quieta: antenas tanteando (con desfase por
+		# hormiga); trabajando en el sitio (excavar, moler): tanteo rápido.
+		var frame := 0
+		var moving := a.px[i] != a.prev_px[i] or a.py[i] != a.prev_py[i]
+		var st := a.state[i]
+		if moving:
+			frame = int(a.anim[i]) % WALK_FRAMES
+		elif st == Ants.St.DIGGING or st == Ants.St.WORK:
+			frame = WALK_FRAMES + (int(a.anim[i]) & 1)
+		else:
+			frame = WALK_FRAMES + (int(world.beh_time * 0.7 + float(i) * 0.37) & 1)
 		var o := n * 12
 		_buf[o] = 1.0; _buf[o + 1] = 0.0; _buf[o + 2] = 0.0; _buf[o + 3] = floorf(x) + 0.5
 		_buf[o + 4] = 0.0; _buf[o + 5] = 1.0; _buf[o + 6] = 0.0; _buf[o + 7] = floorf(y) + 0.5
-		_buf[o + 8] = float(int(d[0]) * 4 + frame)
+		_buf[o + 8] = float(int(d[0]) * FRAMES_PER_DIR + frame)
 		_buf[o + 9] = float(row)
 		_buf[o + 10] = float(d[1])
 		_buf[o + 11] = float(d[2])
@@ -104,7 +114,7 @@ func _process(_delta: float) -> void:
 		var carry := a.carry[i]
 		if carry != SimConst.Carry.NONE:
 			var v: Vector2 = DIR_VEC[dk]
-			var reach: float = HEAD_REACH[mini(c, 3)]
+			var reach: float = HEAD_REACH[row]
 			var ix := floorf(x + v.x * reach) + 0.5
 			var iy := floorf(y + v.y * reach + 1.0) + 0.5
 			var oi := ni * 12

@@ -53,18 +53,26 @@ func _draw() -> void:
 
 ## Pared de la habitación detrás del formicario (solo modo ventana): clara de
 ## día, azulada de noche. Va en su propia capa, DETRÁS del suelo, para no tapar
-## el montículo de tierra que sobresale por encima de la superficie.
+## el montículo de tierra que sobresale por encima de la superficie. Es un color
+## plano igual al del fondo de la ventana, así no se nota el borde del mundo al
+## agrandar la ventana. Debajo del cristal, la balda de madera donde se apoya.
 func _draw_room() -> void:
 	if not draw_room:
 		return
 	var soil := world.soil
-	var top := room_color(world.cal.light_level())
-	var bottom := top.darkened(0.08)
-	var hmax := SimConst.SURFACE_Y + 4
-	var steps := 12
-	for k in steps:
-		var y0 := float(hmax) * k / steps
-		draw_rect(Rect2(0, y0, soil.w, float(hmax) / steps + 1.0), top.lerp(bottom, float(k) / steps))
+	var light := world.cal.light_level()
+	var wall := room_color(light)
+	draw_rect(Rect2(-2000, -2000, soil.w + 4000, 2000 + SimConst.SURFACE_Y + 4), wall)
+	# Balda: tablero con canto claro arriba y sombra debajo; escuadras a los lados.
+	var wood := Color8(124, 86, 54).lerp(Color8(52, 44, 52), 1.0 - light)
+	var top := float(soil.h)
+	draw_rect(Rect2(-24, top, soil.w + 48, 7), wood)
+	draw_rect(Rect2(-24, top, soil.w + 48, 1), wood.lightened(0.25))
+	draw_rect(Rect2(-24, top + 6, soil.w + 48, 1), wood.darkened(0.35))
+	draw_rect(Rect2(-24, top + 7, soil.w + 48, 3), Color(0, 0, 0, 0.18))
+	for bx in [30.0, float(soil.w) - 36.0]:
+		draw_rect(Rect2(bx, top + 7, 6, 14), wood.darkened(0.15))
+		draw_rect(Rect2(bx, top + 7, 1, 14), wood.lightened(0.1))
 
 
 func _draw_back() -> void:

@@ -278,7 +278,7 @@ func _update(i: int, dt: float) -> void:
 			moved = true
 			break
 	if moved:
-		anim[i] += dt * speed[i] * 0.55
+		anim[i] += dt * speed[i] * 0.9   # ~1 fotograma por px: los pies no patinan
 	elif state[i] == St.DIGGING or state[i] == St.WORK:
 		anim[i] += dt * 4.0
 

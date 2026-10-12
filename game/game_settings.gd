@@ -8,7 +8,8 @@ var window_mode: String = "ventana"     ## "ventana" | "franja"
 var strip_height: int = 300
 var always_on_top: bool = false
 var time_scale_key: String = "acompanante"
-var zoom: int = 2
+var zoom: int = 2                       ## zoom manual (franja, o ventana sin ajuste automático)
+var zoom_auto: bool = true              ## en modo ventana, el formicario crece con la ventana
 var show_info: bool = true
 var behaviour_speed: float = 1.0
 var low_power_unfocused: bool = true
@@ -22,7 +23,8 @@ func load_settings() -> void:
 	window_mode = String(cf.get_value("ventana", "modo", window_mode))
 	strip_height = int(cf.get_value("ventana", "alto_franja", strip_height))
 	always_on_top = bool(cf.get_value("ventana", "siempre_encima", always_on_top))
-	zoom = clampi(int(cf.get_value("ventana", "zoom", zoom)), 1, 4)
+	zoom = clampi(int(cf.get_value("ventana", "zoom", zoom)), 1, 8)
+	zoom_auto = bool(cf.get_value("ventana", "zoom_auto", zoom_auto))
 	window_pos = cf.get_value("ventana", "posicion", window_pos)
 	time_scale_key = String(cf.get_value("juego", "escala_tiempo", time_scale_key))
 	show_info = bool(cf.get_value("juego", "mostrar_info", show_info))
@@ -38,6 +40,7 @@ func save_settings() -> void:
 	cf.set_value("ventana", "alto_franja", strip_height)
 	cf.set_value("ventana", "siempre_encima", always_on_top)
 	cf.set_value("ventana", "zoom", zoom)
+	cf.set_value("ventana", "zoom_auto", zoom_auto)
 	cf.set_value("ventana", "posicion", window_pos)
 	cf.set_value("juego", "escala_tiempo", time_scale_key)
 	cf.set_value("juego", "mostrar_info", show_info)

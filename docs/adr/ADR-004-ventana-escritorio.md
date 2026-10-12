@@ -7,7 +7,7 @@
 
 Hay dos modos (tecla F11 o el botón *Franja*/*Ventana*):
 
-- **Ventana:** ventana normal de 1280×560 con bordes y la pared de la habitación de fondo. La posición se recuerda entre sesiones.
+- **Ventana:** ventana normal de 1280×560 con bordes y la pared de la habitación de fondo. La posición se recuerda entre sesiones. Al redimensionarla (señal `size_changed` del viewport) el formicario usa el mayor zoom entero que cabe y queda centrado sobre una balda.
 - **Franja:** ventana sin bordes, con fondo transparente por píxel, del ancho del área útil del monitor y unos 300 px de alto, pegada al borde inferior (respeta la barra de tareas mediante `screen_get_usable_rect`). Las zonas vacías dejan pasar los clics a las aplicaciones de debajo con `DisplayServer.window_set_mouse_passthrough(polígono)`. El polígono (formicario y barra de herramientas) se recalcula una vez por segundo.
 
 «Siempre encima» es opcional y está **desactivado por defecto**, para no tapar ventanas a pantalla completa.
