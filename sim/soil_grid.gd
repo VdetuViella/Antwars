@@ -309,7 +309,8 @@ func erode_loose(rng: RandomNumberGenerator, n: int, around_x: int, spread: int)
 		if y >= h:
 			continue
 		var m := mat[y * w + x]
-		if (m == M.LOOSE or m == M.MIDDEN) and y < surface_h[x]:
+		# Se conserva la base del montículo (las 5 filas por encima del suelo).
+		if (m == M.LOOSE or m == M.MIDDEN) and y < surface_h[x] - 5:
 			set_mat(x, y, M.AIR)
 			_wake_around(x, y)
 			done += 1

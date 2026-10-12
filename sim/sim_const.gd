@@ -30,8 +30,8 @@ const TASK_KEYS := ["rest", "nurse", "forage", "dig", "mill", "clean", "queen"]
 enum Carry { NONE = 0, SEED = 1, SOIL = 2, BREAD = 3, HUSK = 4, CORPSE = 5 }
 
 # --- Campos de distancia de navegación ---
-enum Field { ENTRANCE = 0, BROOD = 1, GRANARY = 2, DIG = 3 }
-const N_FIELDS := 4
+enum Field { ENTRANCE = 0, BROOD = 1, GRANARY = 2, DIG = 3, REST = 4, QUEEN = 5 }
+const N_FIELDS := 6
 
 # --- Escalas de tiempo (segundos biológicos por segundo real) ---
 const TIME_SCALES := {

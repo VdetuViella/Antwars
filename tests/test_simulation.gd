@@ -59,3 +59,23 @@ func test_nav_fields_reach_brood() -> void:
 	var d := w.nav.dist_at(SimConst.Field.BROOD, w.ants.node[q])
 	check(d < NavGrid.INF_DIST, "la reina puede llegar a la cámara de cría")
 	w.dispose()
+
+
+func test_foragers_reach_feeder_across_entrance() -> void:
+	# Regresión: la boca del nido cortaba el camino por la superficie y las
+	# forrajeras solo podían ir hacia un lado.
+	var w := make_world(11)
+	w.set_time_scale(800.0)
+	# Se avanza hasta que las primeras obreras reabren la entrada (≈ día 42),
+	# con un tope de ~69 días biológicos por si la fundación se atasca.
+	var waited := 0.0
+	while w.plan.sealed or w.colony.founding:
+		_run(w, 100.0)
+		waited += 100.0
+		if waited > 7500.0:
+			break
+	check(not w.plan.sealed, "el tapón está abierto (día %.1f)" % w.bio_day())
+	w.set_time_scale(200.0)
+	_run(w, 1500.0)
+	check(w.colony.seeds_harvested_total > 0.0, "se han recogido semillas del comedero")
+	w.dispose()

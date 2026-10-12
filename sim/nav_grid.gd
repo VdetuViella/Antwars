@@ -90,11 +90,18 @@ func _compute_walk(nx: int, ny: int) -> int:
 	if not is_outworld(n):
 		return 1  # dentro del nido: caminan por el cristal, todo hueco es transitable
 	# En el outworld solo se camina pegado al suelo (o a la pila de tierra).
+	# La boca del nido cuenta como suelo para poder cruzarla por el borde.
 	for dy in range(-1, 2):
 		for dx in range(-1, 2):
 			if dx == 0 and dy == 0:
 				continue
-			if dy >= 0 and _node_solidish(nx + dx, ny + dy):
+			if dy < 0:
+				continue
+			var xx := nx + dx
+			var yy := ny + dy
+			if _node_solidish(xx, yy):
+				return 1
+			if xx >= 0 and yy >= 0 and xx < nw and yy < nh and not is_outworld(yy * nw + xx):
 				return 1
 	return 0
 
@@ -188,13 +195,19 @@ func refresh_fields() -> void:
 
 
 func _bfs(f: int) -> void:
-	var dist := fields[f]
+	fields[f] = bfs_from(field_sources[f])
+
+
+## Campo de distancias BFS desde un conjunto de nodos fuente.
+func bfs_from(sources: PackedInt32Array) -> PackedInt32Array:
+	var dist := PackedInt32Array()
+	dist.resize(nw * nh)
 	dist.fill(INF_DIST)
 	var queue := PackedInt32Array()
 	queue.resize(nw * nh)
 	var head := 0
 	var tail := 0
-	for s in field_sources[f]:
+	for s in sources:
 		if s >= 0 and s < walk.size() and walk[s] == 1 and dist[s] != 0:
 			dist[s] = 0
 			queue[tail] = s
@@ -219,7 +232,7 @@ func _bfs(f: int) -> void:
 			dist[m] = nd
 			queue[tail] = m
 			tail += 1
-	fields[f] = dist
+	return dist
 
 
 func dist_at(field: int, n: int) -> int:

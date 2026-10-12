@@ -58,6 +58,11 @@ var _stim_timer: float = 0.0
 var _seed_timer: float = 0.0
 var _dig_sources_version: int = -1
 var dig_front_count: int = 0
+## Un campo de distancias por cámara de descanso: cada hormiga tiene «su» cámara
+## preferida, así se reparten por el nido en vez de amontonarse en la primera.
+var rest_fields: Array[PackedInt32Array] = []
+var _rest_timer: float = 0.0
+var _rest_key: String = ""
 
 
 # ---------------------------------------------------------------------------
@@ -163,6 +168,10 @@ func step_behaviour(dt: float) -> void:
 	if _plan_timer <= 0.0:
 		_plan_timer = 2.0
 		_update_plan()
+	_rest_timer -= dt
+	if _rest_timer <= 0.0:
+		_rest_timer = 5.0
+		_refresh_rest_fields()
 	_stim_timer -= dt
 	if _stim_timer <= 0.0:
 		_stim_timer = 3.0
@@ -192,7 +201,7 @@ func step_bio(dt_s: float) -> void:
 	tuft_stock += _tuft_season_factor() * 5.0 * env.tuft_xs.size() * days
 	tuft_stock = minf(tuft_stock, 400.0)
 	# Erosión lenta del montículo y del basurero. [D]
-	var n_erode := Colony._stoch_round(18.0 * days, rng_sim)
+	var n_erode := Colony._stoch_round(8.0 * days, rng_sim)
 	if n_erode > 0:
 		soil.erode_loose(rng_sim, n_erode, plan.entrance_x, 40)
 		soil.erode_loose(rng_sim, Colony._stoch_round(6.0 * days, rng_sim), int(midden_x), 12)
@@ -259,6 +268,57 @@ func granary_site_pos() -> Vector2:
 	return Vector2(float(c["cx"]), float(int(c["cy"]) + int(c["ry"]) - 2))
 
 
+func _refresh_rest_fields() -> void:
+	var srcs: Array[int] = []
+	for ci in plan.chambers.size():
+		var c := plan.chambers[ci]
+		if String(c["purpose"]) == "granary" or not _chamber_reachable(ci):
+			continue
+		var n := nav.nearest_walkable(float(c["cx"]), float(c["cy"]), 5)
+		if n >= 0:
+			srcs.append(n)
+	var key := "%d:%s" % [nav.walk_version, str(srcs)]
+	if key == _rest_key:
+		return
+	_rest_key = key
+	rest_fields.clear()
+	for n in srcs:
+		rest_fields.append(nav.bfs_from(PackedInt32Array([n])))
+
+
+## Distancia de un nodo a la cámara de descanso preferida de la hormiga i.
+func rest_dist(i: int, n: int) -> int:
+	if rest_fields.is_empty():
+		return nav.dist_at(SimConst.Field.REST, n)
+	return rest_fields[i % rest_fields.size()][n]
+
+
+## Nodos de suelo de todas las cámaras excavadas con esos propósitos.
+func _chamber_sources(purposes: Array, fallback: int) -> PackedInt32Array:
+	var out := PackedInt32Array()
+	for ci in plan.chambers.size():
+		var c := plan.chambers[ci]
+		if not purposes.has(String(c["purpose"])) or not _chamber_reachable(ci):
+			continue
+		var n := nav.nearest_walkable(float(c["cx"]), float(int(c["cy"]) + int(c["ry"]) - 2), 5)
+		if n >= 0 and not out.has(n):
+			out.append(n)
+	if out.is_empty() and fallback >= 0:
+		out.append(fallback)
+	out.sort()
+	return out
+
+
+## Cámaras excavadas de un tipo (índices), de la más profunda a la menos.
+func chambers_of(purpose: String) -> Array[int]:
+	var out: Array[int] = []
+	for ci in plan.chambers.size():
+		if String(plan.chambers[ci]["purpose"]) == purpose and _chamber_reachable(ci):
+			out.append(ci)
+	out.sort_custom(func(a: int, b: int) -> bool: return int(plan.chambers[a]["cy"]) > int(plan.chambers[b]["cy"]))
+	return out
+
+
 func _chamber_reachable(ci: int) -> bool:
 	var c := plan.chambers[ci]
 	return soil.is_air(int(c["cx"]), int(c["cy"]))
@@ -279,10 +339,12 @@ func _chamber_depth_frac(purpose: String) -> float:
 func space_need() -> Dictionary:
 	var w := float(colony.total_workers())
 	var b := float(colony.brood_total())
-	var need_b := 110.0 + 40.0 * pow(w, 0.6) + 3.0 * pow(b, 0.8)
+	# [D] Área de corte (px²) que la colonia «quiere» tener. Crece de forma
+	# sublineal: el corte del formicario solo muestra una rebanada del nido real.
+	var need_b := 150.0 + 60.0 * pow(w, 0.65) + 5.0 * pow(b, 0.85)
 	var need_g := 0.0
 	if colony.granary > 1.0:
-		need_g = 60.0 + 25.0 * pow(colony.granary / 50.0, 0.7)
+		need_g = 80.0 + 30.0 * pow(colony.granary / 50.0, 0.7)
 	return {"brood": need_b, "granary": need_g}
 
 
@@ -308,12 +370,16 @@ func _refresh_sources(force: bool) -> void:
 	# Entrada: el nodo de superficie justo encima de la boca.
 	var ent := nav.nearest_walkable(float(plan.entrance_x), float(plan.entrance_y - 2), 4)
 	nav.set_sources(SimConst.Field.ENTRANCE, PackedInt32Array([ent]) if ent >= 0 else PackedInt32Array())
+	# La reina vive en la cámara de cría más profunda; la cría y las reservas se
+	# reparten entre todas las cámaras de su tipo (fuentes múltiples).
 	var bp := brood_site_pos()
 	var bn := nav.nearest_walkable(bp.x, bp.y, 6)
-	nav.set_sources(SimConst.Field.BROOD, PackedInt32Array([bn]) if bn >= 0 else PackedInt32Array())
+	nav.set_sources(SimConst.Field.QUEEN, PackedInt32Array([bn]) if bn >= 0 else PackedInt32Array())
+	nav.set_sources(SimConst.Field.BROOD, _chamber_sources(["brood"], bn))
 	var gp := granary_site_pos()
 	var gn := nav.nearest_walkable(gp.x, gp.y, 6)
-	nav.set_sources(SimConst.Field.GRANARY, PackedInt32Array([gn]) if gn >= 0 else PackedInt32Array())
+	nav.set_sources(SimConst.Field.GRANARY, _chamber_sources(["granary"], gn))
+	nav.set_sources(SimConst.Field.REST, _chamber_sources(["brood", "rest"], bn))
 	if force or soil.version != _dig_sources_version:
 		_dig_sources_version = soil.version
 		# Frente = nodo transitable a ≤ 1 nodo de una celda pendiente de excavar.
@@ -366,7 +432,9 @@ func compute_stimuli() -> void:
 			frac *= 0.3
 		desired[SimConst.Task.FORAGE] = maxf(1.0 if w >= 3.0 else 0.0, roundf(w * frac))
 	if plan.has_active_work() and dig_front_count > 0:
-		var base := clampf(float(dig_front_count) / 3.0, 1.0, maxf(1.0, w * 0.35))
+		var deficit := plan.space_deficit(space_need())
+		var by_deficit := deficit / 60.0
+		var base := clampf(maxf(float(dig_front_count) / 3.0, by_deficit), 1.0, maxf(1.0, minf(w * 0.3, float(dig_front_count) * 1.5)))
 		if plan.plug_open_requested:
 			base = maxf(base, minf(3.0, w))
 		desired[SimConst.Task.DIG] = base
@@ -378,10 +446,15 @@ func compute_stimuli() -> void:
 	var mult := {"crecer": [1.0, 1.5, 1.2, 1.0, 1.0, 1.0], "acumular": [1.0, 1.0, 1.6, 0.8, 1.2, 1.0],
 		"excavar": [1.0, 0.9, 0.9, 1.8, 1.0, 1.0]}
 	var m: Array = mult.get(priority, [1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
+	# Estímulo dinámico (Bonabeau et al. 1996): sube mientras falten obreras en
+	# la tarea y baja cuando sobran, así la plantilla converge a la demanda.
 	for j in SimConst.N_TASKS:
 		var cur := float(ants.task_count[j])
-		var d := desired[j]
-		stimuli[j] = 0.0 if d <= 0.0 else (d / (cur + 1.0)) * 1.4 * float(m[j])
+		var d := desired[j] * float(m[j])
+		if d <= 0.0:
+			stimuli[j] = 0.0
+			continue
+		stimuli[j] = clampf(stimuli[j] + 0.6 * (d - cur) / maxf(d, 2.0), 0.0, 5.0)
 
 
 # ---------------------------------------------------------------------------

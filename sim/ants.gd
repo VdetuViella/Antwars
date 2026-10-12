@@ -41,6 +41,8 @@ var target := PackedInt32Array()
 var aux := PackedInt32Array()          ## dato auxiliar (semilla objetivo…)
 var px := PackedFloat32Array()
 var py := PackedFloat32Array()
+var prev_px := PackedFloat32Array()    ## posición en el paso anterior (interpolación del render)
+var prev_py := PackedFloat32Array()
 var speed := PackedFloat32Array()
 var timer := PackedFloat32Array()
 var task_timer := PackedFloat32Array()
@@ -69,6 +71,7 @@ func setup(w: SimWorld, capacity: int) -> void:
 	px = _zeros_f(cap); py = _zeros_f(cap); speed = _zeros_f(cap); timer = _zeros_f(cap)
 	task_timer = _zeros_f(cap); born_day = _zeros_f(cap); anim = _zeros_f(cap)
 	carry_amt = _zeros_f(cap); dump_x = _zeros_f(cap); strength = _zeros_f(cap)
+	prev_px = px; prev_py = py
 	thr.resize(cap * SimConst.N_TASKS)
 	thr.fill(1.0)
 	free_list.clear()
@@ -116,6 +119,9 @@ func spawn(c: int, x: float, y: float, bday: float, is_nanitic: bool) -> int:
 	var cpos := nav.node_center(n)
 	px[i] = cpos.x
 	py[i] = cpos.y
+	if prev_px.size() == cap:
+		prev_px[i] = cpos.x
+		prev_py[i] = cpos.y
 	var sp := world.species.speed_for_caste(c)
 	if is_nanitic:
 		sp *= 0.85
@@ -192,6 +198,8 @@ func _set_task(i: int, t: int) -> void:
 # ---------------------------------------------------------------------------
 
 func step(dt: float) -> void:
+	prev_px = px      # copia barata (copia en escritura)
+	prev_py = py
 	for i in cap:
 		if alive[i] == 0:
 			continue
@@ -297,6 +305,47 @@ func _local(i: int, field: int, radius: int) -> int:
 	return -1
 
 
+## Bajar por el campo de la cámara de descanso preferida de la hormiga i.
+func _path_rest(i: int) -> int:
+	if world.rest_fields.is_empty():
+		var r := _path(i, F.REST)
+		return r if r >= 0 else -1
+	var field: PackedInt32Array = world.rest_fields[i % world.rest_fields.size()]
+	var n := node[i]
+	var d := field[n]
+	if d == 0 or d >= NavGrid.INF_DIST:
+		return -1
+	var nx := nav.node_x(n)
+	var ny := nav.node_y(n)
+	var best := -1
+	var best_d := d
+	for k in 8:
+		var xx: int = nx + NavGrid.NB_DX[k]
+		var yy: int = ny + NavGrid.NB_DY[k]
+		if xx < 0 or yy < 0 or xx >= nav.nw or yy >= nav.nh:
+			continue
+		var m := yy * nav.nw + xx
+		if nav.walk[m] == 1 and field[m] < best_d:
+			best_d = field[m]
+			best = m
+	return best
+
+
+func _local_rest(i: int, radius: int) -> int:
+	var n := node[i]
+	var start := rng.randi_range(0, 7)
+	for j in 8:
+		var k := (start + j) % 8
+		var xx: int = nav.node_x(n) + NavGrid.NB_DX[k]
+		var yy: int = nav.node_y(n) + NavGrid.NB_DY[k]
+		if xx < 0 or yy < 0 or xx >= nav.nw or yy >= nav.nh:
+			continue
+		var m := yy * nav.nw + xx
+		if nav.is_walkable(m) and world.rest_dist(i, m) <= radius:
+			return m
+	return -1
+
+
 func _outworld(i: int) -> bool:
 	return nav.is_outworld(node[i])
 
@@ -378,25 +427,31 @@ func _decide(i: int) -> int:
 
 
 func _decide_rest(i: int) -> int:
-	if _outworld(i):
-		var r := _path(i, F.BROOD)
+	# Ir a la cámara más cercana (no granero), repartirse por ella y quedarse quieta.
+	if state[i] == St.RESTING:
+		if timer[i] <= 0.0:
+			state[i] = St.LOCAL
+			timer[i] = rng.randf_range(1.0, 4.0)
+		return -1
+	var d := world.rest_dist(i, node[i])
+	if state[i] != St.LOCAL and d > 4:
+		var r := _path_rest(i)
 		if r >= 0:
 			return r
-		r = _path(i, F.ENTRANCE)
-		return r if r >= 0 else _wander(i)
-	if state[i] != St.RESTING:
-		# Caminar un poco por el nido y luego quedarse quieta.
-		if state[i] != St.LOCAL:
-			state[i] = St.LOCAL
-			timer[i] = rng.randf_range(1.0, 5.0)
-		if timer[i] > 0.0:
-			return _wander(i)
-		state[i] = St.RESTING
-		timer[i] = rng.randf_range(12.0, 40.0)
-		return -1
-	if timer[i] <= 0.0:
+		if _outworld(i):
+			r = _path(i, F.ENTRANCE)
+			if r >= 0:
+				return r
+		# Sin cámara alcanzable: descansar donde esté.
+	if state[i] != St.LOCAL:
 		state[i] = St.LOCAL
-		timer[i] = rng.randf_range(1.0, 4.0)
+		timer[i] = rng.randf_range(1.0, 5.0)
+	if timer[i] > 0.0:
+		var nx := _local_rest(i, 6)
+		if nx >= 0:
+			return nx
+	state[i] = St.RESTING
+	timer[i] = rng.randf_range(12.0, 40.0)
 	return -1
 
 
@@ -599,7 +654,7 @@ func _decide_nurse(i: int) -> int:
 				timer[i] = rng.randf_range(6.0, 18.0)
 			if rng.randf() < 0.35:
 				return -1  # atendiendo a la cría
-			return _local(i, F.BROOD, 3)
+			return _local(i, F.BROOD, 6)
 		_:
 			var r3 := _path(i, F.BROOD)
 			if r3 == ARRIVED or r3 == UNREACH:
@@ -692,11 +747,11 @@ func _decide_queen(i: int) -> int:
 			return -1
 		state[i] = St.LOCAL
 		timer[i] = rng.randf_range(1.0, 3.0)
-	var r2 := _path(i, F.BROOD)
-	if r2 >= 0 and nav.dist_at(F.BROOD, node[i]) > 2:
+	var r2 := _path(i, F.QUEEN)
+	if r2 >= 0 and nav.dist_at(F.QUEEN, node[i]) > 2:
 		return r2
 	if state[i] == St.LOCAL and timer[i] > 0.0:
-		return _local(i, F.BROOD, 2)
+		return _local(i, F.QUEEN, 2)
 	state[i] = St.RESTING
 	timer[i] = rng.randf_range(20.0, 60.0)
 	return -1
@@ -722,6 +777,7 @@ func from_dict(d: Dictionary) -> void:
 	px = d["px"]; py = d["py"]; speed = d["speed"]; timer = d["timer"]; task_timer = d["task_timer"]
 	born_day = d["born_day"]; anim = d["anim"]; carry_amt = d["carry_amt"]; dump_x = d["dump_x"]
 	strength = d["strength"]; thr = d["thr"]; free_list = d["free_list"]; task_count = d["task_count"]
+	prev_px = px; prev_py = py
 	queen_index = int(d["queen_index"])
 	# Las semillas objetivo no se guardan: soltar referencias.
 	for i in cap:

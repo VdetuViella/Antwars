@@ -231,8 +231,30 @@ func chamber_for(purpose: String) -> int:
 	return best
 
 
+func active_zone_count() -> int:
+	var n := 0
+	for t in tunnels:
+		if not t["done"]:
+			n += 1
+	for ci in chambers.size():
+		if not chambers[ci]["done"] and _chamber_active(ci):
+			n += 1
+	return n
+
+
+## Déficit total de espacio (px²) respecto a lo que la colonia necesita.
+func space_deficit(need: Dictionary) -> float:
+	var d := 0.0
+	for purpose: String in ["brood", "granary"]:
+		d += maxf(0.0, float(need.get(purpose, 0.0)) - area_for(purpose))
+	return d
+
+
 func _maybe_plan_new(soil: SoilGrid, need: Dictionary, rng: RandomNumberGenerator, events: Array[String]) -> void:
-	if has_active_work():
+	# Con mucho déficit de espacio se abren varios frentes a la vez (colonias grandes).
+	var max_zones := 1 + int(space_deficit(need) / 700.0)
+	max_zones = clampi(max_zones, 1, 4)
+	if (debris_ref != null and not debris_ref.is_empty()) or active_zone_count() >= max_zones:
 		return
 	var order := ["granary", "brood"]
 	for purpose: String in order:
@@ -241,6 +263,8 @@ func _maybe_plan_new(soil: SoilGrid, need: Dictionary, rng: RandomNumberGenerato
 			continue
 		# ¿Alguna cámara de ese tipo puede crecer todavía?
 		for c in chambers:
+			if not c["done"]:
+				continue
 			if c["purpose"] == purpose and (int(c["rx"]) < int(c["max_rx"]) or int(c["ry"]) < int(c["max_ry"])):
 				c["done"] = false
 				return
@@ -273,8 +297,8 @@ func _plan_chamber(soil: SoilGrid, purpose: String, rng: RandomNumberGenerator) 
 		var ey := sy + roundi(sin(ang) * length)
 		var rx := 11 if purpose == "granary" else 9
 		var ry := 4
-		var max_rx := 18 if purpose == "granary" else 15
-		var max_ry := 5 if purpose == "granary" else 6
+		var max_rx := 22 if purpose == "granary" else 19
+		var max_ry := 6 if purpose == "granary" else 7
 		var cx := ex + roundi(dir * 4.0)
 		var cy := ey + 1
 		if purpose == "granary" and cy > entrance_y + 90:
