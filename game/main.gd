@@ -32,6 +32,7 @@ var _save_path := SaveSystem.DEFAULT_PATH
 var _screenshot_frames := -1
 var _screenshot_path := ""
 var _test_size := Vector2i.ZERO     ## --tam=AnchoxAlto (pruebas de escalado)
+var _frozen := false                ## --captura-fija: sin offline y con el tiempo parado (capturas reproducibles)
 var _series_left := 0               ## --serie=N: N capturas seguidas (pruebas de animación)
 var _series_idx := 0
 
@@ -47,7 +48,7 @@ func _ready() -> void:
 		world.from_dict(saved)
 		world.set_time_scale(settings.time_scale())
 		var elapsed := Time.get_unix_time_from_system() - float(saved.get("saved_at_real", Time.get_unix_time_from_system()))
-		if elapsed > 60.0:
+		if elapsed > 60.0 and not _frozen:
 			offline_summary = OfflineResolver.resolve(world, elapsed)
 	else:
 		var seed_v := int(Time.get_unix_time_from_system()) & 0x7FFFFFFF
@@ -58,6 +59,8 @@ func _ready() -> void:
 	_build_ui()
 	_apply_window_mode()
 	get_viewport().size_changed.connect(_on_viewport_resized)
+	if _frozen:
+		Engine.time_scale = 0.0   # nada avanza: la misma partida da siempre la misma imagen
 	if _test_size != Vector2i.ZERO and not DesktopWindow.is_headless():
 		_apply_test_size.call_deferred()
 	if not offline_summary.is_empty() and float(offline_summary.get("real_seconds", 0.0)) > 300.0:
@@ -82,6 +85,8 @@ func _parse_cmdline() -> void:
 			settings.window_mode = "ventana"
 		elif a.begins_with("--serie="):
 			_series_left = int(a.substr(8))
+		elif a == "--captura-fija":
+			_frozen = true
 		elif a.begins_with("--tam="):
 			var parts := a.substr(6).split("x")
 			if parts.size() == 2:
