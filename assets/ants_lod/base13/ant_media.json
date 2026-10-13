@@ -1,0 +1,67 @@
+{
+  "variant": "media",
+  "base_px": 13,
+  "directions": 16,
+  "direction_zero": "east",
+  "direction_order": "clockwise_on_screen",
+  "frames": 8,
+  "gait": "alternating_tripod",
+  "rest_frame": 0,
+  "stride_mm": 4.627,
+  "views": [
+    "top",
+    "side"
+  ],
+  "rows_per_view": 16,
+  "pivot": "thorax_center",
+  "levels": [
+    {
+      "level": 0,
+      "zoom": 1,
+      "ant_length_px": 14.95,
+      "cell_px": [
+        23,
+        23
+      ],
+      "pivot_px": [
+        11.5,
+        11.5
+      ],
+      "head_reach_px": 6.12,
+      "feet_px": 3.38,
+      "file": "ant_media_L0.png"
+    },
+    {
+      "level": 1,
+      "zoom": 2,
+      "ant_length_px": 29.9,
+      "cell_px": [
+        45,
+        45
+      ],
+      "pivot_px": [
+        22.5,
+        22.5
+      ],
+      "head_reach_px": 12.24,
+      "feet_px": 6.76,
+      "file": "ant_media_L1.png"
+    },
+    {
+      "level": 2,
+      "zoom": 4,
+      "ant_length_px": 59.8,
+      "cell_px": [
+        90,
+        90
+      ],
+      "pivot_px": [
+        45.0,
+        45.0
+      ],
+      "head_reach_px": 24.49,
+      "feet_px": 13.53,
+      "file": "ant_media_L2.png"
+    }
+  ]
+}

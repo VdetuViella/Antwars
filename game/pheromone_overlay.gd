@@ -21,6 +21,23 @@ func setup(w: SimWorld) -> void:
 	visible = false
 
 
+## Detalle por niveles (ADR-005): 0 = dibujo clásico; 1, 2 o 4 = shader a
+## resolución de pantalla (moteado fino a ×2 y ×4, bloques de 4 px a ×1 como hoy).
+func set_lod_zoom(z: int) -> void:
+	if z <= 0:
+		material = null
+		scale = Vector2(SimConst.PHER_CELL, SimConst.PHER_CELL)
+		return
+	var m := ShaderMaterial.new()
+	m.shader = load("res://game/shaders/pheromone_lod.gdshader")
+	m.set_shader_parameter("pher_tex", tex)
+	m.set_shader_parameter("zoom", z)
+	m.set_shader_parameter("world_cells", Vector2(world.soil.w, world.soil.h))
+	m.set_shader_parameter("pher_cell", float(SimConst.PHER_CELL))
+	material = m
+	scale = Vector2(SimConst.PHER_CELL * z, SimConst.PHER_CELL * z)
+
+
 func _process(delta: float) -> void:
 	if not visible or world == null:
 		return

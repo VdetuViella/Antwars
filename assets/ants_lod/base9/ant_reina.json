@@ -1,0 +1,67 @@
+{
+  "variant": "reina",
+  "base_px": 9,
+  "directions": 16,
+  "direction_zero": "east",
+  "direction_order": "clockwise_on_screen",
+  "frames": 8,
+  "gait": "alternating_tripod",
+  "rest_frame": 0,
+  "stride_mm": 4.736,
+  "views": [
+    "top",
+    "side"
+  ],
+  "rows_per_view": 16,
+  "pivot": "thorax_center",
+  "levels": [
+    {
+      "level": 0,
+      "zoom": 1,
+      "ant_length_px": 15.3,
+      "cell_px": [
+        23,
+        23
+      ],
+      "pivot_px": [
+        11.5,
+        11.5
+      ],
+      "head_reach_px": 5.96,
+      "feet_px": 3.46,
+      "file": "ant_reina_L0.png"
+    },
+    {
+      "level": 1,
+      "zoom": 2,
+      "ant_length_px": 30.6,
+      "cell_px": [
+        46,
+        46
+      ],
+      "pivot_px": [
+        23.0,
+        23.0
+      ],
+      "head_reach_px": 11.91,
+      "feet_px": 6.92,
+      "file": "ant_reina_L1.png"
+    },
+    {
+      "level": 2,
+      "zoom": 4,
+      "ant_length_px": 61.2,
+      "cell_px": [
+        92,
+        92
+      ],
+      "pivot_px": [
+        46.0,
+        46.0
+      ],
+      "head_reach_px": 23.82,
+      "feet_px": 13.84,
+      "file": "ant_reina_L2.png"
+    }
+  ]
+}

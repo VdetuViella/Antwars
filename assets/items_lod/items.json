@@ -1,0 +1,38 @@
+{
+  "items": [
+    "semilla",
+    "terron",
+    "pan",
+    "cascara",
+    "cadaver",
+    "huevo",
+    "larva_peq",
+    "larva_gr",
+    "pupa",
+    "semilla_hierba",
+    "granero",
+    "gota"
+  ],
+  "cell_mm": 8,
+  "pivot": "cell_center",
+  "levels": [
+    {
+      "level": 0,
+      "zoom": 1,
+      "cell_px": 8,
+      "file": "items_L0.png"
+    },
+    {
+      "level": 1,
+      "zoom": 2,
+      "cell_px": 16,
+      "file": "items_L1.png"
+    },
+    {
+      "level": 2,
+      "zoom": 4,
+      "cell_px": 32,
+      "file": "items_L2.png"
+    }
+  ]
+}

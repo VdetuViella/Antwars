@@ -13,6 +13,11 @@ var draw_room: bool = true
 var items_tex: Texture2D
 var _t := 0.0
 var _anim := 0.0
+## Detalle por niveles (ADR-005): 0 = dibujo clásico (el nodo lo escala world_root);
+## 1, 2 o 4 = el nodo no se escala y se dibuja a resolución de pantalla.
+var lod_zoom: int = 0
+var _lod_items: Array[Texture2D] = []
+var _lod_cell := PackedInt32Array()
 
 
 func setup(w: SimWorld, which: int) -> void:
@@ -20,6 +25,23 @@ func setup(w: SimWorld, which: int) -> void:
 	layer = which
 	items_tex = load("res://assets/sprites/items.png")
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+
+
+## Activa el dibujo por niveles con el zoom dado (0 lo desactiva).
+func set_lod_zoom(z: int) -> void:
+	lod_zoom = z
+	if z > 0 and _lod_items.is_empty():
+		var man: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://assets/items_lod/items.json"))
+		for lv: Dictionary in man["levels"]:
+			_lod_items.append(load("res://assets/items_lod/" + String(lv["file"])) as Texture2D)
+			_lod_cell.append(int(lv["cell_px"]))
+	queue_redraw()
+
+
+## Escala de la geometría plana del decorado (rectángulos sin textura).
+func _geo_transform() -> void:
+	if lod_zoom > 0:
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2(lod_zoom, lod_zoom))
 
 
 func _process(delta: float) -> void:
@@ -35,6 +57,15 @@ static func room_color(light: float) -> Color:
 
 
 func _item(idx: int, pos: Vector2) -> void:
+	if lod_zoom > 0:
+		# Objeto del atlas del nivel, a resolución de pantalla (1 texel = 1 píxel).
+		var lv := 0 if lod_zoom == 1 else (1 if lod_zoom == 2 else 2)
+		var cell := float(_lod_cell[lv])
+		var sp := (pos * float(lod_zoom)).floor() - Vector2(cell, cell) * 0.5
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+		draw_texture_rect_region(_lod_items[lv], Rect2(sp, Vector2(cell, cell)), Rect2(idx * cell, 0, cell, cell))
+		_geo_transform()
+		return
 	draw_texture_rect_region(items_tex, Rect2(floorf(pos.x) - 4.0, floorf(pos.y) - 4.0, ITEM, ITEM),
 		Rect2(idx * ITEM, 0, ITEM, ITEM))
 
@@ -42,6 +73,7 @@ func _item(idx: int, pos: Vector2) -> void:
 func _draw() -> void:
 	if world == null:
 		return
+	_geo_transform()
 	match layer:
 		Layer.ROOM:
 			_draw_room()
@@ -80,7 +112,9 @@ func _draw_back() -> void:
 	# Mechones de hierba (detrás de las hormigas).
 	var month := world.cal.month()
 	var dry := 1.0 if month in [7, 8] else (0.5 if month in [6, 9] else 0.0)
-	for tx in world.env.tuft_xs:
+	if lod_zoom > 1:
+		_draw_grass_lod(month, dry)
+	for tx in (world.env.tuft_xs if lod_zoom <= 1 else PackedInt32Array()):
 		var base_y := float(soil.col_top[clampi(tx, 0, soil.w - 1)])
 		for b in 9:
 			var bx := float(tx) + (b - 4) * 1.6
@@ -118,6 +152,33 @@ func _draw_back() -> void:
 	# Granero y cría (dentro de las cámaras).
 	_draw_granary()
 	_draw_brood()
+
+
+## Hierba a ×2 y ×4: más briznas, de 1 px de pantalla, con el mismo vaivén.
+func _draw_grass_lod(month: int, dry: float) -> void:
+	var soil := world.soil
+	var z := float(lod_zoom)
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	var n := 9 * lod_zoom
+	for tx in world.env.tuft_xs:
+		var base_y := float(soil.col_top[clampi(tx, 0, soil.w - 1)])
+		for b in n:
+			var bx := float(tx) + (float(b) / float(lod_zoom) - 4.0) * 1.6
+			var hgt := 10.0 + float((tx * 7 + b * 13) % 9) + float((b * 31) % 5) * 0.4
+			var sway := sin(_anim * 1.3 + float(b) * 0.7 / float(lod_zoom) + tx) * 1.4
+			var green := Color8(86, 128, 58).lerp(Color8(170, 150, 80), dry)
+			if b % 3 == 0:
+				green = green.darkened(0.15)
+			elif b % 5 == 0:
+				green = green.lightened(0.08)
+			var p0 := Vector2(bx, base_y) * z
+			var p1 := Vector2(bx + sway * 0.5, base_y - hgt * 0.5) * z
+			var tip := Vector2(bx + sway, base_y - hgt) * z
+			draw_line(p0, p1, green, 1.0)
+			draw_line(p1, tip, green.lightened(0.1), 1.0)
+			if b % (2 * lod_zoom) == 1 and month in [5, 6, 7, 9, 10]:
+				draw_rect(Rect2(floorf(tip.x) - 1.0, floorf(tip.y) - z, maxf(2.0, z * 0.5), 2.0 * z), Color8(196, 170, 96))
+	_geo_transform()
 
 
 func _chamber_floor_slots(ci: int, count: int, from_right: bool, spacing_wide: bool = false) -> Array[Vector2]:

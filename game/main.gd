@@ -7,6 +7,7 @@ extends Node
 const AUTOSAVE_SECONDS := 120.0
 const PRIORITIES := ["equilibrio", "crecer", "acumular", "excavar"]
 const PRIORITY_NAMES := {"equilibrio": "Equilibrio", "crecer": "Crecer", "acumular": "Acumular", "excavar": "Excavar"}
+const LOD_ZOOMS := [1, 2, 4]          ## pasos de zoom con detalle por niveles (ADR-005, D1)
 
 var settings := GameSettings.new()
 var world: SimWorld
@@ -17,6 +18,8 @@ var decor_back: DecorLayer
 var decor_front: DecorLayer
 var pher_r: PheromoneOverlay
 var ant_r: AntRenderer
+var soil_lod: SoilLodView            ## detalle por niveles: suelo con caché
+var ant_lod: AntLodRenderer          ## detalle por niveles: hormigas con atlas por nivel
 var hud: Hud
 var backdrop: ColorRect     ## fondo opaco en modo ventana (la ventana admite transparencia)
 
@@ -32,8 +35,11 @@ var _save_path := SaveSystem.DEFAULT_PATH
 var _screenshot_frames := -1
 var _screenshot_path := ""
 var _test_size := Vector2i.ZERO     ## --tam=AnchoxAlto (pruebas de escalado)
+var _frozen := false                ## --captura-fija: sin offline y con el tiempo parado (capturas reproducibles)
 var _series_left := 0               ## --serie=N: N capturas seguidas (pruebas de animación)
 var _series_idx := 0
+var _lod := false                   ## vista construida con detalle por niveles
+var _zoom_eff := 1                  ## zoom con el que se dibuja ahora mismo
 
 
 func _ready() -> void:
@@ -47,7 +53,7 @@ func _ready() -> void:
 		world.from_dict(saved)
 		world.set_time_scale(settings.time_scale())
 		var elapsed := Time.get_unix_time_from_system() - float(saved.get("saved_at_real", Time.get_unix_time_from_system()))
-		if elapsed > 60.0:
+		if elapsed > 60.0 and not _frozen:
 			offline_summary = OfflineResolver.resolve(world, elapsed)
 	else:
 		var seed_v := int(Time.get_unix_time_from_system()) & 0x7FFFFFFF
@@ -58,6 +64,8 @@ func _ready() -> void:
 	_build_ui()
 	_apply_window_mode()
 	get_viewport().size_changed.connect(_on_viewport_resized)
+	if _frozen:
+		Engine.time_scale = 0.0   # nada avanza: la misma partida da siempre la misma imagen
 	if _test_size != Vector2i.ZERO and not DesktopWindow.is_headless():
 		_apply_test_size.call_deferred()
 	if not offline_summary.is_empty() and float(offline_summary.get("real_seconds", 0.0)) > 300.0:
@@ -82,6 +90,17 @@ func _parse_cmdline() -> void:
 			settings.window_mode = "ventana"
 		elif a.begins_with("--serie="):
 			_series_left = int(a.substr(8))
+		elif a == "--captura-fija":
+			_frozen = true
+		elif a == "--detalle":
+			settings.detail_levels_enabled = true
+		elif a == "--sin-detalle":
+			settings.detail_levels_enabled = false
+		elif a.begins_with("--hormiga="):
+			settings.ant_px = int(a.substr(10))
+		elif a.begins_with("--zoom="):
+			settings.zoom = int(a.substr(7))
+			settings.zoom_auto = false
 		elif a.begins_with("--tam="):
 			var parts := a.substr(6).split("x")
 			if parts.size() == 2:
@@ -110,9 +129,19 @@ func _build_view() -> void:
 	backdrop.set_anchors_preset(Control.PRESET_FULL_RECT)
 	backdrop.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	back_layer.add_child(backdrop)
+	_build_world_layers()
+
+
+## Capas del mundo. Con el detalle por niveles apagado se crean exactamente las de
+## siempre (mismo orden, mismo dibujo); encendido, el suelo y las hormigas se pintan
+## a resolución de pantalla y world_root no se escala.
+func _build_world_layers() -> void:
+	_lod = settings.detail_levels_enabled
 	world_root = Node2D.new()
 	world_root.name = "World"
 	add_child(world_root)
+	if hud != null:
+		move_child(world_root, hud.get_index())   # el mundo, siempre por debajo de la interfaz
 	# Orden de pintado: habitación → suelo → decorado (cría, granero, comedero…)
 	# → feromonas → hormigas → cristal.
 	decor_room = DecorLayer.new()
@@ -121,6 +150,10 @@ func _build_view() -> void:
 	soil_r = SoilRenderer.new()
 	soil_r.setup(world)
 	world_root.add_child(soil_r)
+	if _lod:
+		soil_lod = SoilLodView.new()
+		world_root.add_child(soil_lod)
+		soil_lod.setup(world, soil_r)
 	decor_back = DecorLayer.new()
 	decor_back.setup(world, DecorLayer.Layer.BACK)
 	world_root.add_child(decor_back)
@@ -130,9 +163,29 @@ func _build_view() -> void:
 	ant_r = AntRenderer.new()
 	ant_r.setup(world)
 	world_root.add_child(ant_r)
+	if _lod:
+		ant_r.visible = false
+		ant_r.set_process(false)
+		ant_lod = AntLodRenderer.new()
+		ant_lod.base_px = settings.ant_px
+		world_root.add_child(ant_lod)
+		ant_lod.setup(world)
 	decor_front = DecorLayer.new()
 	decor_front.setup(world, DecorLayer.Layer.FRONT)
 	world_root.add_child(decor_front)
+
+
+## Alterna el detalle por niveles en caliente (tecla D): rehace las capas del mundo.
+func _toggle_detail() -> void:
+	settings.detail_levels_enabled = not settings.detail_levels_enabled
+	settings.save_settings()
+	var pher_visible := pher_r.visible
+	world_root.free()
+	soil_lod = null
+	ant_lod = null
+	_build_world_layers()
+	pher_r.visible = pher_visible
+	_apply_window_mode()
 
 
 func _build_ui() -> void:
@@ -159,7 +212,17 @@ func _refresh_buttons() -> void:
 
 ## Zoom entero del formicario. En modo ventana con ajuste automático, el mayor
 ## que cabe en la ventana (el pixel art se mantiene nítido con escalas enteras).
+## Con detalle por niveles solo existen los pasos ×1, ×2 y ×4 (ADR-005).
 func _target_zoom() -> int:
+	if _lod:
+		if settings.window_mode == "franja" or not settings.zoom_auto:
+			return _snap_lod_zoom(settings.zoom)
+		var vs := _view_size()
+		var best := 1
+		for z: int in LOD_ZOOMS:
+			if world.soil.w * z <= int(vs.x) and world.soil.h * z <= int(vs.y) - Hud.BAR_H:
+				best = z
+		return best
 	if settings.window_mode == "franja" or not settings.zoom_auto:
 		return settings.zoom
 	var vs := _view_size()
@@ -168,9 +231,32 @@ func _target_zoom() -> int:
 	return clampi(mini(fit_w, fit_h), 1, 8)
 
 
+## El paso de detalle más alto que no supera z (×3 → ×2, ×8 → ×4).
+static func _snap_lod_zoom(z: int) -> int:
+	var best := 1
+	for s: int in LOD_ZOOMS:
+		if s <= z:
+			best = s
+	return best
+
+
 func _apply_zoom() -> void:
-	var z := float(_target_zoom())
+	_zoom_eff = _target_zoom()
+	if _lod:
+		world_root.scale = Vector2.ONE
+		soil_lod.set_zoom(_zoom_eff)
+		ant_lod.set_zoom(_zoom_eff)
+		for d: DecorLayer in [decor_room, decor_back, decor_front]:
+			d.set_lod_zoom(_zoom_eff)
+		pher_r.set_lod_zoom(_zoom_eff)
+		return
+	var z := float(_zoom_eff)
 	world_root.scale = Vector2(z, z)
+
+
+## Zoom efectivo (píxeles de pantalla por mm de mundo), sea cual sea el modo.
+func _z() -> float:
+	return float(_zoom_eff)
 
 
 func _on_viewport_resized() -> void:
@@ -183,7 +269,7 @@ func _on_viewport_resized() -> void:
 
 func _apply_window_mode() -> void:
 	_apply_zoom()
-	var z := world_root.scale.x
+	var z := _z()
 	if settings.window_mode == "franja":
 		_strip_size = DesktopWindow.apply_strip_mode(settings.strip_height, settings.always_on_top)
 		decor_room.draw_room = false
@@ -211,7 +297,7 @@ func _view_size() -> Vector2:
 ## puede desplazar (`_pan` es el desplazamiento absoluto, ≤ 0).
 func _layout_world() -> void:
 	var vs := _view_size()
-	var z := world_root.scale.x
+	var z := _z()
 	var ww := float(world.soil.w) * z
 	var wh := float(world.soil.h) * z
 	var avail_h := vs.y - Hud.BAR_H
@@ -231,6 +317,8 @@ func _layout_world() -> void:
 		_pan.y = clampf(_pan.y, avail_h - wh, 0.0)
 		y = floorf(_pan.y)
 	world_root.position = Vector2(x, y)
+	if ant_lod != null:
+		ant_lod.view_rect = Rect2(-world_root.position, vs)
 
 
 func _update_click_region() -> void:
@@ -238,7 +326,7 @@ func _update_click_region() -> void:
 		return
 	# Zona que capta el ratón: el formicario desde un poco por encima del suelo,
 	# más la barra y los paneles abiertos. El resto deja pasar los clics.
-	var z := world_root.scale.x
+	var z := _z()
 	var vs := _view_size()
 	var top_world := float(SimConst.SURFACE_Y - 18)
 	var top := clampf(world_root.position.y + top_world * z, 0.0, vs.y)
@@ -260,6 +348,8 @@ func _process(delta: float) -> void:
 	world.advance(delta, coarse)
 	var bdt := SimConst.BEHAVIOUR_DT if not coarse else 0.5
 	ant_r.alpha = clampf(world.beh_accum / bdt, 0.0, 1.0)
+	if ant_lod != null:
+		ant_lod.alpha = ant_r.alpha
 	_ui_timer -= delta
 	if _ui_timer <= 0.0:
 		_ui_timer = 0.25
@@ -301,7 +391,7 @@ func _update_magnifier() -> void:
 	mat.set_shader_parameter("center_uv", m / vs)
 	mat.set_shader_parameter("screen_px", vs)
 	# Información de la hormiga más cercana al centro de la lupa.
-	var wp := (m - world_root.position) / world_root.scale.x
+	var wp := (m - world_root.position) / _z()
 	var best := -1
 	var best_d := 16.0
 	var a := world.ants
@@ -397,6 +487,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			KEY_EQUAL, KEY_PLUS, KEY_KP_ADD: _zoom(1)
 			KEY_MINUS, KEY_KP_SUBTRACT: _zoom(-1)
 			KEY_0, KEY_KP_0: _zoom_auto()
+			KEY_D: _toggle_detail()
 			KEY_ESCAPE:
 				hud.journal_panel.visible = false
 				hud.help_panel.visible = false
@@ -404,14 +495,19 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _paint_at(screen_pos: Vector2) -> void:
-	var wp := (screen_pos - world_root.position) / world_root.scale.x
+	var wp := (screen_pos - world_root.position) / _z()
 	if world.soil.in_bounds(int(wp.x), int(wp.y)) and wp.y < float(world.soil.surface_h[int(wp.x)] + 2):
 		world.cmd_paint_trail(wp.x, float(world.soil.col_top[int(wp.x)] - 2))
 
 
 func _zoom(d: int) -> void:
 	# Zoom manual: parte del zoom actual y desactiva el ajuste automático.
-	settings.zoom = clampi(int(world_root.scale.x) + d, 1, 8)
+	if _lod:
+		# Pasos ×1 → ×2 → ×4, con tope en los extremos y cambio instantáneo.
+		var k := clampi(LOD_ZOOMS.find(_zoom_eff) + d, 0, LOD_ZOOMS.size() - 1)
+		settings.zoom = LOD_ZOOMS[k]
+	else:
+		settings.zoom = clampi(_zoom_eff + d, 1, 8)
 	settings.zoom_auto = false
 	_apply_zoom()
 	_layout_world()

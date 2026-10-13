@@ -1,0 +1,67 @@
+{
+  "variant": "mayor",
+  "base_px": 9,
+  "directions": 16,
+  "direction_zero": "east",
+  "direction_order": "clockwise_on_screen",
+  "frames": 8,
+  "gait": "alternating_tripod",
+  "rest_frame": 0,
+  "stride_mm": 3.761,
+  "views": [
+    "top",
+    "side"
+  ],
+  "rows_per_view": 16,
+  "pivot": "thorax_center",
+  "levels": [
+    {
+      "level": 0,
+      "zoom": 1,
+      "ant_length_px": 12.15,
+      "cell_px": [
+        19,
+        19
+      ],
+      "pivot_px": [
+        9.5,
+        9.5
+      ],
+      "head_reach_px": 6.21,
+      "feet_px": 2.75,
+      "file": "ant_mayor_L0.png"
+    },
+    {
+      "level": 1,
+      "zoom": 2,
+      "ant_length_px": 24.3,
+      "cell_px": [
+        37,
+        37
+      ],
+      "pivot_px": [
+        18.5,
+        18.5
+      ],
+      "head_reach_px": 12.41,
+      "feet_px": 5.5,
+      "file": "ant_mayor_L1.png"
+    },
+    {
+      "level": 2,
+      "zoom": 4,
+      "ant_length_px": 48.6,
+      "cell_px": [
+        73,
+        73
+      ],
+      "pivot_px": [
+        36.5,
+        36.5
+      ],
+      "head_reach_px": 24.82,
+      "feet_px": 10.99,
+      "file": "ant_mayor_L2.png"
+    }
+  ]
+}

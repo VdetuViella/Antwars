@@ -1,0 +1,67 @@
+{
+  "variant": "menor",
+  "base_px": 9,
+  "directions": 16,
+  "direction_zero": "east",
+  "direction_order": "clockwise_on_screen",
+  "frames": 8,
+  "gait": "alternating_tripod",
+  "rest_frame": 0,
+  "stride_mm": 2.786,
+  "views": [
+    "top",
+    "side"
+  ],
+  "rows_per_view": 16,
+  "pivot": "thorax_center",
+  "levels": [
+    {
+      "level": 0,
+      "zoom": 1,
+      "ant_length_px": 9.0,
+      "cell_px": [
+        14,
+        14
+      ],
+      "pivot_px": [
+        7.0,
+        7.0
+      ],
+      "head_reach_px": 3.32,
+      "feet_px": 2.04,
+      "file": "ant_menor_L0.png"
+    },
+    {
+      "level": 1,
+      "zoom": 2,
+      "ant_length_px": 18.0,
+      "cell_px": [
+        27,
+        27
+      ],
+      "pivot_px": [
+        13.5,
+        13.5
+      ],
+      "head_reach_px": 6.64,
+      "feet_px": 4.07,
+      "file": "ant_menor_L1.png"
+    },
+    {
+      "level": 2,
+      "zoom": 4,
+      "ant_length_px": 36.0,
+      "cell_px": [
+        54,
+        54
+      ],
+      "pivot_px": [
+        27.0,
+        27.0
+      ],
+      "head_reach_px": 13.29,
+      "feet_px": 8.14,
+      "file": "ant_menor_L2.png"
+    }
+  ]
+}

@@ -8,6 +8,10 @@ extends Sprite2D
 const M := SimConst.Mat
 const BLOCK := 8
 
+## Tras repintar: rectángulos de celdas cambiadas (vacío = todo el mundo). Lo usa
+## la vista por niveles (ADR-005) para refrescar su caché; no altera este dibujo.
+signal redrawn(rects: Array[Rect2i])
+
 var world: SimWorld
 var img: Image
 var tex: ImageTexture
@@ -112,6 +116,7 @@ func _process(delta: float) -> void:
 		_full_redraw()
 		tex.update(img)
 		_dirty_blocks.clear()
+		redrawn.emit([] as Array[Rect2i])
 		return
 	for i in soil.consume_dirty():
 		var bx := (i % soil.w) / BLOCK
@@ -121,6 +126,7 @@ func _process(delta: float) -> void:
 	if _timer > 0.0 or _dirty_blocks.is_empty():
 		return
 	_timer = 0.1
+	var rects: Array[Rect2i] = []
 	for key: int in _dirty_blocks:
 		var bx := key % 1000
 		var by := key / 1000
@@ -131,6 +137,8 @@ func _process(delta: float) -> void:
 		for y in range(y0, y1):
 			for x in range(x0, x1):
 				_write(x, y)
+		rects.append(Rect2i(x0, y0, x1 - x0, y1 - y0))
 	_dirty_blocks.clear()
 	img.set_data(soil.w, soil.h, false, Image.FORMAT_RGBA8, pix)
 	tex.update(img)
+	redrawn.emit(rects)
