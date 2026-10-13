@@ -95,3 +95,16 @@ Entorno: contenedor con 2 vCPU y **render por software (llvmpipe) en Xvfb**. Los
 5. **Arte de la Fase 3 (R10):** ¿renderizador propio en Python (todo aquí) o script de Blender para ejecutar en tu PC?
 
 Mientras no respondas, para la Fase 1 usaré estos valores provisionales: (a) para el zoom; 9 px y 13 px como dos tamaños para comparar en el prototipo; cenital dentro del prototipo; la lupa sin tocar; y el renderizador propio.
+
+## 9. Decisiones del propietario (13-10-2026)
+
+1. **Zoom:** automático en {×1, ×2, ×4}. En modo ventana se elige el mayor paso que cabe (×2 en 1080p); `+`/`−` suben y bajan un paso.
+2. **Tamaño a ×1:** se prueban **9 px y 13 px** en el prototipo antes de fijar `ANT_BASE_PX`.
+3. **Vista:** «que caminen tanto en cenital como de perfil». Interpretación para el prototipo, pendiente de que la revise el propietario:
+   - **perfil** cuando la hormiga camina apoyada en un suelo (superficie, suelo de galerías y cámaras);
+   - **cenital** cuando va por el cristal (pozos verticales, cruzando cámaras);
+   - con histéresis para que no parpadee.
+
+   Las dos vistas salen del **mismo modelo 3D** (cámara cenital o lateral), así que no se rota pixel art. **Extensión del contrato del atlas:** cada PNG lleva 16 filas de vista cenital seguidas de 16 de perfil (`"views": ["top", "side"]`).
+4. **Arte:** renderizador 3D propio en Python + numpy, sin Blender.
+5. **Lupa:** se deja como está hasta que se decida (cuestión 1).
