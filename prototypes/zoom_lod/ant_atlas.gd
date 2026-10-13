@@ -4,8 +4,8 @@ extends RefCounted
 ## perfil; columnas = 8 fotogramas; fotograma 0 = reposo). El dibujo no sabe de
 ## dónde sale el arte (script, Blender o a mano).
 ##
-## Los PNG se cargan en crudo (Image.load_from_file) para garantizar textura sin
-## compresión con pérdida y sin mipmaps (regla dura 5).
+## Los PNG se cargan como recursos importados (sin pérdida y sin mipmaps, como el
+## resto de sprites; regla dura 5), lo que funciona igual en el editor y exportado.
 
 const LEVEL_OF_ZOOM := {1: 0, 2: 1, 4: 2}
 
@@ -28,8 +28,7 @@ func load_variant(dir: String, variant: String) -> bool:
 	textures.clear()
 	cells.clear()
 	for lv: Dictionary in manifest["levels"]:
-		var img := Image.load_from_file(ProjectSettings.globalize_path(dir.path_join(String(lv["file"]))))
-		textures.append(ImageTexture.create_from_image(img))
+		textures.append(load(dir.path_join(String(lv["file"]))) as Texture2D)
 		cells.append(int(lv["cell_px"][0]))
 	return true
 
