@@ -65,6 +65,42 @@ func test_view_choice_uses_both_views() -> void:
 	w.dispose()
 
 
+func test_idle_animation() -> void:
+	# Una hormiga parada mueve las antenas a tandas (fotogramas 8..15) y descansa
+	# (fotograma 0); es determinista y no depende de ninguna RNG.
+	var w := make_world(11)
+	w.set_time_scale(800.0)
+	_run(w, 3000.0)
+	var still := -1
+	for i in w.ants.cap:
+		if w.ants.alive[i] == 1:
+			still = i
+			break
+	check(still >= 0, "hay alguna hormiga")
+	var runs: Array[PackedByteArray] = []
+	for _k in 2:
+		var v := AntViewState.new()
+		v.idle_frames = 8
+		var seen := PackedByteArray()
+		for _f in 200:
+			v.update(w, 1.0, 1.0 / 30.0)       # mundo quieto: todas paradas
+			seen.append(v.frame[still])
+		runs.append(seen)
+	check_eq(runs[0], runs[1], "el reposo animado es determinista")
+	var idle := 0
+	var rest := 0
+	for f in runs[0]:
+		if f >= AntViewState.FRAMES:
+			idle += 1
+		elif f == 0:
+			rest += 1
+	check(idle > 0 and rest > 0, "tandas de antenas (%d) y pausas (%d)" % [idle, rest])
+	var v0 := AntViewState.new()
+	v0.update(w, 1.0, 1.0 / 30.0)
+	check_eq(v0.frame[still], 0, "sin fotogramas de reposo en el atlas, fotograma 0")
+	w.dispose()
+
+
 func test_dir_conversion_and_frames() -> void:
 	check_eq(AntViewState.dir16_from_dir8(0), 0, "este → 0")
 	check_eq(AntViewState.dir16_from_dir8(2), 12, "norte (dir8 = 2) → 12 en sentido horario")
@@ -99,10 +135,12 @@ func _check_variant(b: int, v: String) -> void:
 	check_eq(int(at.manifest["directions"]), 16, "%s: 16 direcciones" % v)
 	check_eq(int(at.manifest["frames"]), 8, "%s: 8 fotogramas" % v)
 	check_eq(int(at.manifest["rest_frame"]), 0, "%s: reposo = fotograma 0" % v)
+	check_eq(at.idle_frames(), 8, "%s: 8 fotogramas de reposo animado" % v)
+	check_eq(at.columns(), 16, "%s: 16 columnas (marcha + reposo)" % v)
 	for lv in 3:
 		var cell := at.cells[lv]
 		var tex := at.textures[lv]
-		check_eq(tex.get_width(), cell * 8, "%s L%d: ancho = 8 celdas" % [v, lv])
+		check_eq(tex.get_width(), cell * at.columns(), "%s L%d: ancho = columnas × celda" % [v, lv])
 		check_eq(tex.get_height(), cell * 32, "%s L%d: alto = 32 filas" % [v, lv])
 	var img := at.textures[2].get_image()
 	var semi := 0

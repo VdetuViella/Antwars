@@ -27,7 +27,13 @@ func _initialize() -> void:
 func _process(_delta: float) -> bool:
 	step += 1
 	# Cambios repartidos: túneles nuevos en varios sitios y tierra suelta en la superficie.
-	if step in [5, 9, 13, 17]:
+	if step == 21:
+		# Orden real del juego: main pide repintado completo (zoom/disposición) y,
+		# en el mismo fotograma, SoilRenderer avisa de un parche.
+		view._request_full()
+		var r: Array[Rect2i] = [Rect2i(100, 60, 40, 40)]
+		view._on_redrawn(r)
+	if step in [1, 5, 9, 13, 17, 21]:
 		var cx := 120 + step * 23
 		for y in range(70, 110):
 			for x in range(cx - 2, cx + 3):
@@ -45,7 +51,13 @@ func _process(_delta: float) -> bool:
 			for x in full.get_width():
 				if full.get_pixel(x, y) != partial_img.get_pixel(x, y):
 					diff += 1
-		print("zoom ×%d · repintados parciales %d · píxeles distintos parcial/completo: %d de %d" % [zoom, view.patch_renders, diff, full.get_width() * full.get_height()])
+		# Bajo la superficie no puede quedar nada transparente (suelo sin pintar).
+		var holes := 0
+		for y in range(int(w.soil.h * 0.6) * zoom, full.get_height(), 3):
+			for x in range(0, full.get_width(), 3):
+				if partial_img.get_pixel(x, y).a < 0.5:
+					holes += 1
+		print("zoom ×%d · repintados parciales %d · píxeles distintos parcial/completo: %d de %d · huecos sin pintar: %d" % [zoom, view.patch_renders, diff, full.get_width() * full.get_height(), holes])
 		w.dispose()
 		return true
 	return false

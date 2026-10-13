@@ -2,7 +2,7 @@
 """Atlas de hormigas por nivel de detalle (ADR-005), renderizados desde un modelo 3D.
 
 Un modelo 3D simple de hormiga se renderiza en proyección ortográfica, SIN
-antialiasing (alfa 0 o 255), a 16 direcciones × 8 fotogramas por nivel:
+antialiasing (alfa 0 o 255), a 16 direcciones × (8 de marcha + 8 de reposo) fotogramas por nivel:
 
   * Cuerpo: gáster, pecíolo, mesosoma y cabeza como elipsoides.
   * Patas (fémur + tibia), antenas acodadas y mandíbulas como cápsulas, con un
@@ -10,6 +10,10 @@ antialiasing (alfa 0 o 255), a 16 direcciones × 8 fotogramas por nivel:
   * Marcha en trípode alterno: delantera y trasera de un lado + media del otro.
     Fotograma 0 = pose de reposo (los seis pies en el suelo); la fase avanza con
     la distancia recorrida (`stride_mm` en el manifiesto).
+  * Antenas vivas: al caminar barren a un lado y a otro y tantean el suelo al
+    ritmo de la marcha. Columnas 8–15 = REPOSO (`idle_frames`): la hormiga parada
+    mueve las antenas (barrido alterno) y desplaza un poco el peso; la delantera
+    de un lado se levanta un instante.
   * Dos vistas (decisión del propietario, extensión del contrato): 16 filas en
     vista CENITAL (camina por el cristal) seguidas de 16 de PERFIL (camina sobre
     un suelo). Las dos salen del mismo modelo, sin rotar pixel art.
@@ -17,7 +21,7 @@ antialiasing (alfa 0 o 255), a 16 direcciones × 8 fotogramas por nivel:
 
 Salida: assets/ants_lod/base<N>/ant_<variante>_L<nivel>.png + ant_<variante>.json
 
-    python3 tools/gen_ant_atlas_3d.py                 # bases de 9 y 13 px
+    python3 tools/gen_ant_atlas_3d.py                 # bases de 5, 6, 7, 9 y 13 px
     python3 tools/gen_ant_atlas_3d.py --base 9        # solo una base
     python3 tools/gen_ant_atlas_3d.py --preview       # además, hojas de muestra
 """
@@ -34,7 +38,9 @@ PALETTE = json.loads((ROOT / "data" / "palette.json").read_text())["ant"]
 OUT = ROOT / "assets" / "ants_lod"
 
 DIRECTIONS = 16
-FRAMES = 8
+FRAMES = 8                                  # marcha (columnas 0–7)
+IDLE_FRAMES = 8                             # reposo (columnas 8–15)
+COLUMNS = FRAMES + IDLE_FRAMES
 LEVELS = [(0, 1), (1, 2), (2, 4)]          # (nivel, zoom)
 AMP = 0.13                                  # recorrido del pie (unidades de cuerpo) a cada lado
 MODEL_LEN = 0.84                            # largo del modelo (cola del gáster → mandíbulas)
@@ -57,9 +63,37 @@ VARIANTS = [
 # Modelo (unidades = largo del cuerpo; x hacia la cabeza, y a la izquierda, z arriba)
 # ---------------------------------------------------------------------------
 
-def ant_model(head_k, gaster_k, queen, phase):
+def _rot(v, yaw, raise_):
+    """Gira un vector del modelo: `yaw` alrededor de z (positivo = hacia la izquierda)
+    y luego `raise_` en el plano vertical que contiene la dirección (positivo = arriba)."""
+    x, y, z = v
+    cy, sy = math.cos(yaw), math.sin(yaw)
+    x, y = x * cy - y * sy, x * sy + y * cy
+    h = math.hypot(x, y)
+    if h < 1e-9:
+        return (x, y, z)
+    cr, sr = math.cos(raise_), math.sin(raise_)
+    h2, z2 = h * cr - z * sr, h * sr + z * cr
+    return (x / h * h2, y / h * h2, z2)
+
+
+def antenna_pose(side, phase, idle):
+    """(giro del escapo, subida del escapo, subida del funículo) de una antena."""
+    if idle is None:
+        # Caminando: barrido alterno al paso y tanteo del suelo (dos toques por ciclo).
+        t = 2.0 * math.pi * phase
+        sweep = 0.30 * math.sin(t + (0.0 if side == 1 else math.pi))
+        return side * sweep, 0.0, 0.30 * math.sin(2.0 * t + (0.0 if side == 1 else 1.6))
+    # Parada: barrido amplio desfasado entre antenas y funículo que sube y baja.
+    t = 2.0 * math.pi * idle / IDLE_FRAMES
+    sweep = 0.55 * math.sin(t + (0.0 if side == 1 else math.pi * 0.5))
+    return side * sweep, 0.12 * math.sin(t + side), 0.45 * math.sin(2.0 * t + (0.0 if side == 1 else 2.0))
+
+
+def ant_model(head_k, gaster_k, queen, phase, idle=None):
     """Devuelve (elipsoides, cápsulas). Elipsoide: (centro, radios, material).
-    Cápsula: (a, b, radio, material, lado) con lado = +1 izquierda / −1 derecha / 0."""
+    Cápsula: (a, b, radio, material, lado) con lado = +1 izquierda / −1 derecha / 0.
+    `idle` = fotograma de reposo (0..IDLE_FRAMES-1) o None si camina con `phase`."""
     z0 = 0.19                                # altura del cuerpo: patas largas (se ven de perfil)
     ell = []
     caps = []
@@ -80,8 +114,11 @@ def ant_model(head_k, gaster_k, queen, phase):
     # Antenas acodadas: escapo hacia delante y arriba, funículo hacia delante y abajo
     for side in (1, -1):
         base = (hx + 0.03 * head_k, 0.04 * side * head_k, z0 + 0.05 * head_k)
-        elbow = (base[0] + 0.07, base[1] + 0.07 * side, base[2] + 0.06)
-        tip = (elbow[0] + 0.14, elbow[1] + 0.03 * side, elbow[2] - 0.05)
+        yaw, up, fup = antenna_pose(side, phase, idle)
+        sc = _rot((0.07, 0.07 * side, 0.06), yaw, up)
+        fn = _rot((0.14, 0.03 * side, -0.05), yaw, up + fup)
+        elbow = (base[0] + sc[0], base[1] + sc[1], base[2] + sc[2])
+        tip = (elbow[0] + fn[0], elbow[1] + fn[1], max(0.01, elbow[2] + fn[2]))
         caps.append((base, elbow, 0.011, "leg", 0))
         caps.append((elbow, tip, 0.010, "leg", 0))
     # Patas: caderas bajo el mesosoma; pies en el suelo (z = 0)
@@ -92,12 +129,23 @@ def ant_model(head_k, gaster_k, queen, phase):
         for side in (1, -1):
             # Grupo A: delantera y trasera izquierdas + media derecha.
             group_a = (k != 1) if side == 1 else (k == 1)
-            p = (phase + (0.0 if group_a else 0.5)) % 1.0
-            if p < 0.5:
-                off, lift = amp * (1.0 - 4.0 * p), 0.0
+            if idle is None:
+                p = (phase + (0.0 if group_a else 0.5)) % 1.0
+                if p < 0.5:
+                    off, lift = amp * (1.0 - 4.0 * p), 0.0
+                else:
+                    q = (p - 0.5) * 2.0
+                    off, lift = -amp + 2.0 * amp * q, lift_h * math.sin(math.pi * q)
             else:
-                q = (p - 0.5) * 2.0
-                off, lift = -amp + 2.0 * amp * q, lift_h * math.sin(math.pi * q)
+                # Reposo = pose del fotograma 0 con un leve vaivén del peso y la
+                # delantera izquierda que se levanta y tantea (fotogramas 3–5).
+                off = amp if group_a else -amp
+                t = 2.0 * math.pi * idle / IDLE_FRAMES
+                off += 0.025 * math.sin(t + k)
+                lift = 0.0
+                if k == 0 and side == 1 and 3 <= idle <= 5:
+                    lift = 0.06 * math.sin(math.pi * (idle - 2) / 4.0)
+                    off += 0.04 * math.sin(math.pi * (idle - 2) / 4.0)
             hip = (hips_x[k], 0.035 * side, z0 - 0.02)
             foot = (feet[k][0] + off, feet[k][1] * side, lift)
             # Rodilla alta y hacia fuera: de perfil la pata forma un arco (fémur
@@ -137,7 +185,10 @@ def render(variant, base_px, zoom, view, direction, frame):
     queen = name == "reina"
     length_px = base_px * len_k * zoom
     cell = int(math.ceil(CELL_FACTOR * length_px))
-    ell, caps, z0 = ant_model(head_k, gaster_k, queen, frame / FRAMES)
+    if frame < FRAMES:
+        ell, caps, z0 = ant_model(head_k, gaster_k, queen, frame / FRAMES)
+    else:
+        ell, caps, z0 = ant_model(head_k, gaster_k, queen, 0.0, frame - FRAMES)
     M, s = view_matrix(view, direction)
     scale = length_px / MODEL_LEN
     # Pivote = centro del tórax en las dos vistas (contrato). `feet_px` dice cuánto
@@ -221,11 +272,11 @@ def build(base_px, preview):
             meta = None
             for vi, view in enumerate(("top", "side")):
                 for d in range(DIRECTIONS):
-                    for f in range(FRAMES):
+                    for f in range(COLUMNS):
                         img, meta = render(variant, base_px, zoom, view, d, f)
                         cell = meta["cell"]
                         if sheet is None:
-                            sheet = Image.new("RGBA", (FRAMES * cell, 2 * DIRECTIONS * cell), (0, 0, 0, 0))
+                            sheet = Image.new("RGBA", (COLUMNS * cell, 2 * DIRECTIONS * cell), (0, 0, 0, 0))
                         sheet.paste(img, (f * cell, (vi * DIRECTIONS + d) * cell))
             fname = f"ant_{name}_L{level}.png"
             sheet.save(out_dir / fname)
@@ -243,6 +294,7 @@ def build(base_px, preview):
             "variant": name, "base_px": base_px,
             "directions": DIRECTIONS, "direction_zero": "east", "direction_order": "clockwise_on_screen",
             "frames": FRAMES, "gait": "alternating_tripod", "rest_frame": 0,
+            "idle_frames": IDLE_FRAMES, "idle_first": FRAMES, "columns": COLUMNS,
             "stride_mm": round(STRIDE_BODY * base_px * variant[1], 3),   # 1 px a ×1 = 1 mm
             "views": ["top", "side"], "rows_per_view": DIRECTIONS,
             "pivot": "thorax_center",
@@ -257,7 +309,7 @@ def main():
     ap.add_argument("--base", type=int, action="append")
     ap.add_argument("--preview", action="store_true")
     a = ap.parse_args()
-    for b in (a.base or [9, 13]):
+    for b in (a.base or [5, 6, 7, 9, 13]):
         build(b, a.preview)
 
 

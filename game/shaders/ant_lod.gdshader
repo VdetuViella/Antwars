@@ -1,8 +1,9 @@
 shader_type canvas_item;
 // Hormigas por nivel (ADR-005): cada instancia del MultiMesh elige su celda del atlas.
-// INSTANCE_CUSTOM = (dirección 0..15, fotograma 0..7, vista 0 = cenital / 1 = perfil, reservado).
+// INSTANCE_CUSTOM = (dirección 0..15, columna 0..frames-1, vista 0 = cenital / 1 = perfil, reservado).
+// Columnas: 0..7 marcha, 8..15 reposo animado (si el atlas las trae).
 // El quad mide exactamente una celda en píxeles de pantalla: 1 texel = 1 píxel.
-uniform float frames = 8.0;
+uniform float frames = 8.0;             // columnas del atlas (AntAtlas.columns())
 uniform float rows = 32.0;              // 16 direcciones × 2 vistas
 uniform bool subpixel = false;          // muestreo «fat pixel» (comparación de la Fase 1)
 uniform bool use_outline = true;

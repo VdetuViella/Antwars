@@ -24,6 +24,7 @@ var patch_renders := 0                 ## repintados parciales (pruebas)
 var patches: Array[ColorRect] = []
 var _pending: Array[Rect2i] = []
 var _hide_patches := false
+var _full_pending := false             ## repintado completo pedido; se hace en _process
 
 
 func setup(w: SimWorld, soil_renderer: SoilRenderer) -> void:
@@ -75,9 +76,19 @@ func set_zoom(z: int) -> void:
 	_request_full()
 
 
-## Repintado completo (al crear la caché o cambiar de zoom).
+## Repintado completo (al crear la caché, cambiar de zoom o cambiar todo el suelo).
+## Se aplaza a _process: si en el mismo fotograma llegaban parches, ocultaban la
+## pantalla completa antes de que el SubViewport la pintara y la caché se quedaba
+## con solo los parches (el suelo desaparecía tras la resolución offline).
 func _request_full() -> void:
+	_full_pending = true
 	_pending.clear()
+
+
+func _do_full() -> void:
+	_full_pending = false
+	_pending.clear()
+	_hide_patches = false
 	rect.visible = true
 	for pr in patches:
 		pr.visible = false
@@ -94,11 +105,16 @@ func _on_redrawn(rects: Array[Rect2i]) -> void:
 		return
 	for r in rects:
 		_write_mat(r)
+		if _full_pending:
+			continue                   # el repintado completo ya lo cubre
 		_pending.append(r.grow(PATCH_MARGIN).intersection(Rect2i(0, 0, world.soil.w, world.soil.h)))
 	mat_tex.update(mat_img)
 
 
 func _process(_delta: float) -> void:
+	if _full_pending:
+		_do_full()
+		return
 	if _hide_patches:
 		# El repintado parcial ya se hizo en el fotograma anterior.
 		_hide_patches = false

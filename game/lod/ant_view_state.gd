@@ -8,7 +8,10 @@ extends RefCounted
 ##
 ##  · Dirección: velocidad interpolada suavizada (media exponencial) y cuantizada a
 ##    16 direcciones con histéresis: no parpadea ni salta en los escalones.
-##  · Fotograma: la fase avanza con la distancia recorrida / zancada; quieta → 0.
+##  · Fotograma: la fase avanza con la distancia recorrida / zancada. Parada, si el
+##    atlas trae fotogramas de reposo, mueve las antenas a ratos: tandas de
+##    IDLE_ACTIVE_S con pausas de duración variable (hash del índice y de la tanda);
+##    en las pausas, fotograma 0. Sin RNG: solo el tiempo real de dibujo.
 ##  · Vista (decisión del propietario): en la superficie camina por el suelo
 ##    (perfil). Dentro del nido, si tiene suelo bajo los pies y va en horizontal,
 ##    ELIGE ir por el suelo (perfil) o por el cristal (cenital); la elección se
@@ -22,6 +25,10 @@ const SMOOTH_S := 0.15
 const VIEW_SWITCH_S := 0.3
 const GLASS_CHOICE := 0.4            ## [D] probabilidad de elegir el cristal pudiendo ir por el suelo
 const MOVE_EPS := 0.0005
+const IDLE_FRAME_S := 0.11          ## duración de cada fotograma de reposo
+const IDLE_ACTIVE_S := 1.76         ## una tanda = dos vueltas de antenas (16 fotogramas)
+const IDLE_PAUSE_MIN_S := 0.4
+const IDLE_PAUSE_MAX_S := 3.0
 const VIEW_TOP := 0
 const VIEW_SIDE := 1
 
@@ -38,6 +45,9 @@ var moving := PackedByteArray()
 var last_pos := PackedVector2Array()
 var draw_pos := PackedVector2Array() ## posición final (mundo), apoyada en el suelo si va de perfil
 var was_alive := PackedByteArray()
+var idle_t := PackedFloat32Array()   ## tiempo dentro de la tanda de reposo actual
+var idle_n := PackedInt32Array()     ## número de tanda (semilla del hash de la pausa)
+var idle_frames := 0                 ## fotogramas de reposo del atlas (0 = sin animación parada)
 
 ## Por fila del atlas (menor, media, mayor, reina, nanitic): mm del tórax al suelo y zancada.
 var feet_mm := PackedFloat32Array([2.0, 2.3, 2.7, 3.4, 1.7])
@@ -58,6 +68,8 @@ func setup(capacity: int) -> void:
 	last_pos.resize(cap); last_pos.fill(Vector2.ZERO)
 	draw_pos.resize(cap); draw_pos.fill(Vector2.ZERO)
 	was_alive.resize(cap); was_alive.fill(0)
+	idle_t.resize(cap); idle_t.fill(0.0)
+	idle_n.resize(cap); idle_n.fill(0)
 
 
 static func hash_u(a: int, b: int) -> int:
@@ -76,6 +88,25 @@ static func row_of(caste: int, nanitic: int) -> int:
 ## Dirección de la simulación (dir8, antihorario desde el este) → 16, horario en pantalla.
 static func dir16_from_dir8(d8: int) -> int:
 	return posmod(-d8 * 2, DIRS)
+
+
+func _idle_pause(i: int) -> float:
+	var u := float(hash_u(i, 1000 + idle_n[i]) % 1000) / 1000.0
+	return lerpf(IDLE_PAUSE_MIN_S, IDLE_PAUSE_MAX_S, u)
+
+
+## Fotograma de una hormiga parada: reposo animado a tandas o el 0 en las pausas.
+func _idle_frame(i: int, dt: float) -> int:
+	if idle_frames <= 0:
+		return 0
+	idle_t[i] += dt
+	var period := IDLE_ACTIVE_S + _idle_pause(i)
+	if idle_t[i] >= period:
+		idle_t[i] -= period
+		idle_n[i] += 1
+	if idle_t[i] < IDLE_ACTIVE_S:
+		return FRAMES + int(idle_t[i] / IDLE_FRAME_S) % idle_frames
+	return 0
 
 
 func _choose_glass(i: int) -> int:
@@ -109,6 +140,8 @@ func update(world: SimWorld, alpha: float, dt: float) -> void:
 			view[i] = VIEW_SIDE if nav.is_outworld(a.node[i]) else VIEW_TOP
 			view_t[i] = 0.0
 			moving[i] = 0
+			idle_n[i] = 0
+			idle_t[i] = float(hash_u(i, 31) % 1000) / 1000.0 * (IDLE_ACTIVE_S + IDLE_PAUSE_MAX_S)
 		var vel := pos - last_pos[i]
 		last_pos[i] = pos
 		var dist := vel.length()
@@ -130,7 +163,7 @@ func update(world: SimWorld, alpha: float, dt: float) -> void:
 			phase[i] = fposmod(phase[i] + dist / maxf(stride_mm[row], 0.1), 1.0)
 			frame[i] = int(phase[i] * FRAMES) % FRAMES
 		elif not is_moving:
-			frame[i] = 0
+			frame[i] = _idle_frame(i, dt)
 		moving[i] = 1 if is_moving else 0
 		# Vista.
 		var outworld := nav.is_outworld(a.node[i])

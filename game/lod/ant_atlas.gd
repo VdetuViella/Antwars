@@ -2,7 +2,8 @@ class_name AntAtlas
 extends RefCounted
 ## Carga una variante de hormiga según el contrato del atlas del ADR-005:
 ## manifiesto JSON + un PNG por nivel (filas = 16 direcciones cenitales y 16 de
-## perfil; columnas = 8 fotogramas; fotograma 0 = reposo). El dibujo no sabe de
+## perfil; columnas = 8 fotogramas de marcha, fotograma 0 = reposo, y opcionalmente
+## `idle_frames` más de reposo animado a continuación). El dibujo no sabe de
 ## dónde sale el arte (script, Blender o a mano).
 ##
 ## Los PNG se cargan como recursos importados (sin pérdida y sin mipmaps, como el
@@ -50,6 +51,15 @@ func cell_for_zoom(zoom: int) -> int:
 func feet_mm() -> float:
 	var lv: Dictionary = manifest["levels"][0]
 	return float(lv["feet_px"]) / float(lv["zoom"])
+
+
+## Columnas del atlas: 8 de marcha (+ 8 de reposo si el manifiesto trae `idle_frames`).
+func columns() -> int:
+	return int(manifest.get("columns", manifest.get("frames", 8)))
+
+
+func idle_frames() -> int:
+	return int(manifest.get("idle_frames", 0))
 
 
 func stride_mm() -> float:

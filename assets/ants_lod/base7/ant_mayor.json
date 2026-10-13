@@ -7,6 +7,9 @@
   "frames": 8,
   "gait": "alternating_tripod",
   "rest_frame": 0,
+  "idle_frames": 8,
+  "idle_first": 8,
+  "columns": 16,
   "stride_mm": 2.925,
   "views": [
     "top",

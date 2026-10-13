@@ -247,6 +247,7 @@ func _apply_zoom_to_ants() -> void:
 		mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
 		mmi.multimesh.mesh = mesh
 		var mat := mmi.material as ShaderMaterial
+		mat.set_shader_parameter("frames", float(atlases[vi].columns()))
 		mat.set_shader_parameter("subpixel", subpixel)
 		mat.set_shader_parameter("debug_texels", debug_texels)
 		mat.set_shader_parameter("use_outline", outline)

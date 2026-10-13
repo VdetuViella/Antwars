@@ -39,6 +39,8 @@ func setup(w: SimWorld) -> void:
 		state.feet_mm[vi] = at.feet_mm()
 		state.stride_mm[vi] = at.stride_mm()
 		var mmi := _make_mmi(load("res://game/shaders/ant_lod.gdshader"), w.ants.cap)
+		(mmi.material as ShaderMaterial).set_shader_parameter("frames", float(at.columns()))
+		state.idle_frames = at.idle_frames()
 		add_child(mmi)
 		mmis.append(mmi)
 		_bufs.append(PackedFloat32Array())

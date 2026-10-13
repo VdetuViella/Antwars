@@ -73,6 +73,26 @@ Con 9 px las hormigas se veían demasiado grandes. Ahora la obrera menor mide **
 |---|---|
 | ![](img/adr005-f2-tamano-x1.png) | ![](img/adr005-f2-tamano-x4.png) |
 
+## Ajuste: antenas y reposo animados (petición del propietario)
+
+- **Al caminar**, las antenas barren a un lado y a otro al ritmo del paso y tantean el suelo dos veces por ciclo.
+- **Paradas**, las hormigas ya no se quedan congeladas. El atlas trae 8 columnas más de reposo (`idle_frames`, columnas 8–15):
+  - las antenas barren desfasadas y el funículo sube y baja;
+  - el peso se desplaza un poco y la pata delantera izquierda se levanta un instante.
+- El reposo va **a tandas**: 1,76 s de movimiento y luego una pausa de 0,4 a 3 s, con el fotograma 0 quieto. La duración de cada pausa sale de un hash del índice y del número de tanda. No usa ninguna RNG, y con la captura congelada se queda quieto.
+- El contrato del atlas crece de forma compatible: `columns`, `idle_frames` e `idle_first` en el manifiesto. Un atlas sin ellos sigue funcionando y se queda en el fotograma 0.
+
+## Corrección: suelo sin pintar al volver de una ausencia
+
+El repintado completo de la caché se pedía en el momento. Si en el mismo fotograma llegaba un parche de tierra, que es lo normal al abrir tras la resolución offline, el parche ocultaba la pantalla completa antes de que se pintara. La caché se quedaba solo con el parche y el suelo desaparecía.
+
+Ahora el repintado completo se aplaza a `_process`, y los parches que llegan mientras está pendiente se descartan porque el repintado ya los cubre. `tools/check_soil_cache.gd` reproduce ese orden exacto:
+
+- antes de la corrección: 27.328 huecos;
+- ahora: 0 huecos y 0 píxeles distintos a ×1, ×2 y ×4.
+
+Las capturas congeladas no lo detectaban porque se saltan el offline.
+
 ## Riesgos y pendientes
 
 1. **El arte de las hormigas es provisional**: sale del modelo de elipsoides de la Fase 1. Es lo que toca en la Fase 3.
