@@ -62,10 +62,21 @@ Con el detalle encendido, el zoom automático elige el **mayor paso de {1, 2, 4}
 |---|---|
 | ![×4](img/adr005-f2-x4.png) | ![franja](img/adr005-f2-strip.png) |
 
+## Ajuste: hormigas más pequeñas (petición del propietario)
+
+Con 9 px las hormigas se veían demasiado grandes. Ahora la obrera menor mide **6 px a ×1 (6 mm)** por defecto, y las demás castas guardan la misma proporción. Es un tamaño más cercano al real (*M. barbarus* menor: 3–6 mm) y cabe holgado en galerías de 5–6 mm.
+
+- El tamaño se puede cambiar en `settings.cfg` (`[detalle] hormiga_px`) o con `--hormiga=N`. Hay atlas de 5, 6, 7, 9 y 13 px; si se pide otro, se usa el de 6.
+- A 5 px, las que van de perfil por la superficie se convierten en manchas a ×1, así que 6 es el mínimo legible.
+
+| ×1 (ampliado ×4): 9 · 6 · 5 px | ×4: 9 · 6 · 5 px |
+|---|---|
+| ![](img/adr005-f2-tamano-x1.png) | ![](img/adr005-f2-tamano-x4.png) |
+
 ## Riesgos y pendientes
 
 1. **El arte de las hormigas es provisional**: sale del modelo de elipsoides de la Fase 1. Es lo que toca en la Fase 3.
-2. **Apelotonamiento visual:** con la base de 9 px a ×2 y ×4, las cámaras llenas se ven como una masa oscura. Se puede suavizar en la Fase 3 con contornos más claros o variando el tono por casta.
+2. **Apelotonamiento visual:** con 6 px ha mejorado mucho; si aún molesta, se puede suavizar en la Fase 3 con contornos más claros o variando el tono por casta.
 3. **Lupa:** sigue sin adaptarse al modo detalle (cuestión abierta 1).
 4. **Memoria:** unos 29 MiB de atlas, aceptado por el propietario.
 5. **Rendimiento de la simulación** (no del ADR): con 1.200 hormigas, el tick cuesta 12,4 ms. El plan B sigue siendo GDExtension.

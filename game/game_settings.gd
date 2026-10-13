@@ -17,6 +17,7 @@ var window_pos: Vector2i = Vector2i(-1, -1)
 ## Detalle por niveles (ADR-005): zoom ×1/×2/×4 con detalle propio en cada paso.
 ## Apagado por defecto: con false el juego se ve y se comporta exactamente como antes.
 var detail_levels_enabled: bool = false
+var ant_px: int = 6                 ## largo de la obrera menor a ×1 en modo detalle (hay atlas de 5, 6, 7, 9 y 13)
 
 
 func load_settings() -> void:
@@ -34,6 +35,7 @@ func load_settings() -> void:
 	behaviour_speed = float(cf.get_value("juego", "velocidad_hormigas", behaviour_speed))
 	low_power_unfocused = bool(cf.get_value("rendimiento", "ahorro_sin_foco", low_power_unfocused))
 	detail_levels_enabled = bool(cf.get_value("detalle", "niveles", detail_levels_enabled))
+	ant_px = int(cf.get_value("detalle", "hormiga_px", ant_px))
 	if not SimConst.TIME_SCALES.has(time_scale_key) and time_scale_key != "debug":
 		time_scale_key = "acompanante"
 
@@ -51,6 +53,7 @@ func save_settings() -> void:
 	cf.set_value("juego", "velocidad_hormigas", behaviour_speed)
 	cf.set_value("rendimiento", "ahorro_sin_foco", low_power_unfocused)
 	cf.set_value("detalle", "niveles", detail_levels_enabled)
+	cf.set_value("detalle", "hormiga_px", ant_px)
 	cf.save(PATH)
 
 

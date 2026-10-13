@@ -86,22 +86,29 @@ func test_detail_switch_off_by_default() -> void:
 
 func test_atlas_contract() -> void:
 	# Contrato del atlas: 16 direcciones × 2 vistas filas, 8 columnas, 3 niveles 1:1.
-	for v: String in AntLodRenderer.VARIANTS:
-		var at := AntAtlas.new()
-		check(at.load_variant("res://assets/ants_lod/base%d" % AntLodRenderer.ANT_BASE_PX, v), "carga %s" % v)
-		check_eq(int(at.manifest["directions"]), 16, "%s: 16 direcciones" % v)
-		check_eq(int(at.manifest["frames"]), 8, "%s: 8 fotogramas" % v)
-		check_eq(int(at.manifest["rest_frame"]), 0, "%s: reposo = fotograma 0" % v)
-		for lv in 3:
-			var cell := at.cells[lv]
-			var tex := at.textures[lv]
-			check_eq(tex.get_width(), cell * 8, "%s L%d: ancho = 8 celdas" % [v, lv])
-			check_eq(tex.get_height(), cell * 32, "%s L%d: alto = 32 filas" % [v, lv])
-		var img := at.textures[2].get_image()
-		var semi := 0
-		for y in range(0, img.get_height(), 3):
-			for x in range(0, img.get_width(), 3):
-				var al := img.get_pixel(x, y).a
-				if al > 0.01 and al < 0.99:
-					semi += 1
-		check_eq(semi, 0, "%s: sin semitransparencias (alfa 0 o 255)" % v)
+	check(AntLodRenderer.BASES.has(AntLodRenderer.ANT_BASE_PX), "hay atlas para el tamaño por defecto")
+	check_eq(GameSettings.new().ant_px, AntLodRenderer.ANT_BASE_PX, "ajuste por defecto = tamaño por defecto")
+	for b: int in AntLodRenderer.BASES:
+		for v: String in AntLodRenderer.VARIANTS:
+			_check_variant(b, v)
+
+
+func _check_variant(b: int, v: String) -> void:
+	var at := AntAtlas.new()
+	check(at.load_variant("res://assets/ants_lod/base%d" % b, v), "carga %s (base %d)" % [v, b])
+	check_eq(int(at.manifest["directions"]), 16, "%s: 16 direcciones" % v)
+	check_eq(int(at.manifest["frames"]), 8, "%s: 8 fotogramas" % v)
+	check_eq(int(at.manifest["rest_frame"]), 0, "%s: reposo = fotograma 0" % v)
+	for lv in 3:
+		var cell := at.cells[lv]
+		var tex := at.textures[lv]
+		check_eq(tex.get_width(), cell * 8, "%s L%d: ancho = 8 celdas" % [v, lv])
+		check_eq(tex.get_height(), cell * 32, "%s L%d: alto = 32 filas" % [v, lv])
+	var img := at.textures[2].get_image()
+	var semi := 0
+	for y in range(0, img.get_height(), 3):
+		for x in range(0, img.get_width(), 3):
+			var al := img.get_pixel(x, y).a
+			if al > 0.01 and al < 0.99:
+				semi += 1
+	check_eq(semi, 0, "%s: sin semitransparencias (alfa 0 o 255)" % v)

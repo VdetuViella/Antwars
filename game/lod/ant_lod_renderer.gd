@@ -5,11 +5,13 @@ extends Node2D
 ## mandíbulas. El nodo no se escala: cada quad mide una celda del atlas en píxeles
 ## de pantalla y su posición se ajusta al píxel entero (pixel art puro).
 
-const ANT_BASE_PX := 9                    ## largo de la obrera menor a ×1 (configurable; hay atlas de 9 y 13)
+const ANT_BASE_PX := 6                    ## largo por defecto de la obrera menor a ×1 (mm = px)
+const BASES := [5, 6, 7, 9, 13]              ## atlas generados en assets/ants_lod/base<N>
 const VARIANTS := ["menor", "media", "mayor", "reina", "nanitic"]   ## = filas de AntViewState
 const ITEM_DIR := "res://assets/items_lod"
 
 var world: SimWorld
+var base_px: int = ANT_BASE_PX           ## GameSettings.ant_px; si no hay atlas de ese tamaño, el por defecto
 var state := AntViewState.new()
 var alpha: float = 0.0                    ## fracción del paso de comportamiento (interpolación)
 var zoom: int = 2
@@ -27,7 +29,9 @@ var _dt := 0.0
 func setup(w: SimWorld) -> void:
 	world = w
 	state.setup(w.ants.cap)
-	var dir := "res://assets/ants_lod/base%d" % ANT_BASE_PX
+	if not BASES.has(base_px):
+		base_px = ANT_BASE_PX
+	var dir := "res://assets/ants_lod/base%d" % base_px
 	for vi in VARIANTS.size():
 		var at := AntAtlas.new()
 		at.load_variant(dir, VARIANTS[vi])

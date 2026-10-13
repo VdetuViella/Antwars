@@ -1,0 +1,67 @@
+{
+  "variant": "nanitic",
+  "base_px": 6,
+  "directions": 16,
+  "direction_zero": "east",
+  "direction_order": "clockwise_on_screen",
+  "frames": 8,
+  "gait": "alternating_tripod",
+  "rest_frame": 0,
+  "stride_mm": 1.579,
+  "views": [
+    "top",
+    "side"
+  ],
+  "rows_per_view": 16,
+  "pivot": "thorax_center",
+  "levels": [
+    {
+      "level": 0,
+      "zoom": 1,
+      "ant_length_px": 5.1,
+      "cell_px": [
+        8,
+        8
+      ],
+      "pivot_px": [
+        4.0,
+        4.0
+      ],
+      "head_reach_px": 1.83,
+      "feet_px": 1.15,
+      "file": "ant_nanitic_L0.png"
+    },
+    {
+      "level": 1,
+      "zoom": 2,
+      "ant_length_px": 10.2,
+      "cell_px": [
+        16,
+        16
+      ],
+      "pivot_px": [
+        8.0,
+        8.0
+      ],
+      "head_reach_px": 3.66,
+      "feet_px": 2.31,
+      "file": "ant_nanitic_L1.png"
+    },
+    {
+      "level": 2,
+      "zoom": 4,
+      "ant_length_px": 20.4,
+      "cell_px": [
+        31,
+        31
+      ],
+      "pivot_px": [
+        15.5,
+        15.5
+      ],
+      "head_reach_px": 7.32,
+      "feet_px": 4.61,
+      "file": "ant_nanitic_L2.png"
+    }
+  ]
+}

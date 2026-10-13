@@ -96,6 +96,8 @@ func _parse_cmdline() -> void:
 			settings.detail_levels_enabled = true
 		elif a == "--sin-detalle":
 			settings.detail_levels_enabled = false
+		elif a.begins_with("--hormiga="):
+			settings.ant_px = int(a.substr(10))
 		elif a.begins_with("--zoom="):
 			settings.zoom = int(a.substr(7))
 			settings.zoom_auto = false
@@ -165,6 +167,7 @@ func _build_world_layers() -> void:
 		ant_r.visible = false
 		ant_r.set_process(false)
 		ant_lod = AntLodRenderer.new()
+		ant_lod.base_px = settings.ant_px
 		world_root.add_child(ant_lod)
 		ant_lod.setup(world)
 	decor_front = DecorLayer.new()
